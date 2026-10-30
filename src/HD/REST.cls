@@ -187,12 +187,21 @@ ClassMethod RespondError(code As %String) As %Status
     return ..Json({"error":(code)})
 }
 
+/// Reconstruct the browser-facing origin and trust HTTPS forwarding only when Cloudflare marks the request.
+ClassMethod ExpectedOrigin() As %String
+{
+    set scheme="http",host=%request.GetCgiEnv("HTTP_HOST")
+    set forwarded=$zconvert(%request.GetCgiEnv("HTTP_X_FORWARDED_PROTO"),"L")
+    if (forwarded="https")&&(%request.GetCgiEnv("HTTP_CF_RAY")'="") { set scheme="https" }
+    quit scheme_"://"_host
+}
+
 /// Read size-limited JSON requests and validate the local page header and same-origin source.
 ClassMethod Body(limit As %Integer = 131072) As %DynamicObject
 {
     if %request.GetCgiEnv("HTTP_X_MED_AUDIT_DEMO")'="local-demo" { throw ##class(%Exception.General).%New("FORBIDDEN") }
-    set origin=%request.GetCgiEnv("HTTP_ORIGIN"),host=%request.GetCgiEnv("HTTP_HOST")
-    if (origin'="")&&(origin'=("http://"_host)) { throw ##class(%Exception.General).%New("FORBIDDEN") }
+    set origin=%request.GetCgiEnv("HTTP_ORIGIN")
+    if (origin'="")&&(origin'=..ExpectedOrigin()) { throw ##class(%Exception.General).%New("FORBIDDEN") }
     if '$isobject(%request.Content) { throw ##class(%Exception.General).%New("INVALID_JSON") }
     if %request.Content.Size>limit { throw ##class(%Exception.General).%New("INPUT_TOO_LARGE") }
     // Decode the CSP request's UTF-8 bytes explicitly so Chinese review reasons are not stored as Latin-1.
