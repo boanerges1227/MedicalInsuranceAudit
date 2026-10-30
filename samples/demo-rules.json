@@ -1,0 +1,27 @@
+{
+  "rules": [
+    {
+      "rule_id": "DEMO-REVIEW-001",
+      "title": "合成演示规则：人工核对重复医嘱",
+      "region": {
+        "province": "演示样本"
+      },
+      "conditions": "同次就诊存在相同编码的有效医嘱",
+      "exceptions": "人工核对医嘱调整及临床需要",
+      "source": {
+        "local_original_path": "synthetic-demo/policy-1.txt",
+        "title": "合成演示依据（非真实政策）"
+      },
+      "policy_dates": {
+        "effective_date": ""
+      },
+      "deployment": {
+        "enabled": false
+      },
+      "review": {
+        "business_review_status": "synthetic_demo"
+      },
+      "sample": true
+    }
+  ]
+}

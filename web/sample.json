@@ -1,0 +1,14 @@
+{
+  "resourceType": "Bundle",
+  "id": "bundle-demo-001",
+  "type": "collection",
+  "entry": [
+    {"resource": {"resourceType": "Patient", "id": "patient-demo-001", "name": [{"text": "演示患者"}]}},
+    {"resource": {"resourceType": "Encounter", "id": "enc-demo-001", "status": "in-progress", "class": {"system": "http://terminology.hl7.org/CodeSystem/v3-ActCode", "code": "IMP"}, "subject": {"reference": "Patient/patient-demo-001"}}},
+    {"resource": {"resourceType": "Condition", "id": "condition-001", "clinicalStatus": {"coding": [{"system": "http://terminology.hl7.org/CodeSystem/condition-clinical", "code": "active"}]}, "code": {"text": "腰部疼痛"}, "subject": {"reference": "Patient/patient-demo-001"}, "encounter": {"reference": "Encounter/enc-demo-001"}}},
+    {"resource": {"resourceType": "MedicationRequest", "id": "med-001", "status": "active", "intent": "order", "medicationCodeableConcept": {"coding": [{"system": "http://www.nlm.nih.gov/research/umls/rxnorm", "code": "5640", "display": "Ibuprofen"}], "text": "布洛芬"}, "subject": {"reference": "Patient/patient-demo-001"}, "encounter": {"reference": "Encounter/enc-demo-001"}}},
+    {"resource": {"resourceType": "MedicationRequest", "id": "med-002", "status": "active", "intent": "order", "medicationCodeableConcept": {"coding": [{"system": "http://www.nlm.nih.gov/research/umls/rxnorm", "code": "5640", "display": "Ibuprofen"}], "text": "布洛芬"}, "subject": {"reference": "Patient/patient-demo-001"}, "encounter": {"reference": "Encounter/enc-demo-001"}}},
+    {"resource": {"resourceType": "Observation", "id": "obs-001", "status": "final", "code": {"text": "血肌酐"}, "subject": {"reference": "Patient/patient-demo-001"}, "encounter": {"reference": "Encounter/enc-demo-001"}, "valueQuantity": {"value": 135, "unit": "μmol/L"}}},
+    {"resource": {"resourceType": "Composition", "id": "note-001", "status": "final", "type": {"text": "病程记录"}, "subject": {"reference": "Patient/patient-demo-001"}, "encounter": {"reference": "Encounter/enc-demo-001"}, "date": "2026-10-28T09:00:00+08:00", "title": "演示病程记录", "section": [{"title": "评估", "text": {"status": "generated", "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\">既往肾功能不全，需复核用药。</div>"}}]}}
+  ]
+}

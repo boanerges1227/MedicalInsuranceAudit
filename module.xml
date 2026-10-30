@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+  <Document name="med-insurance-audit.ZPM">
+    <Module>
+      <Name>med-insurance-audit</Name>
+      <Version>0.1.0</Version>
+      <Description>FHIR medical audit evidence assistant for InterSystems IRIS</Description>
+      <Keywords>fhir,interoperability,agent,mcp,vector</Keywords>
+      <Author><Person>John Pan</Person><CopyrightDate>2026</CopyrightDate><License>MIT</License></Author>
+      <Packaging>module</Packaging>
+      <SystemRequirements Version="&gt;=2026.3" Interoperability="enabled"/>
+      <SourcesRoot>src</SourcesRoot>
+      <Resource Name="HD.PackagePreflight.CLS" Preload="true"/>
+      <Resource Name="HD.PKG" Directory="."/>
+      <Invoke Class="HD.PackagePreflight" Method="InstallSchema" Phase="Compile" When="Before" CheckStatus="true"/>
+      <FileCopy Name="web/" Target="${mgrdir}med-insurance-audit/web/"/>
+      <FileCopy Name="samples/" Target="${mgrdir}med-insurance-audit/samples/"/>
+      <FileCopy Name="tools/" Target="${mgrdir}med-insurance-audit/tools/"/>
+      <Invoke Class="HD.PackageSetup" Method="Configure" Phase="Activate" When="After" CheckStatus="true"><Arg>${mgrdir}med-insurance-audit/</Arg></Invoke>
+      <AfterInstallMessage>To initialize the synthetic demo in a dedicated USER namespace, run: do ##class(HD.PackageSetup).Start()</AfterInstallMessage>
+    </Module>
+  </Document>
+</Export>

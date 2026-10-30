@@ -1,0 +1,49 @@
+name: med-insurance-audit
+services:
+  init-durable:
+    image: iris-community:2026.3.0AI.154.0
+    user: "0:0"
+    entrypoint: ["/bin/sh", "-c", "chown irisowner:irisowner /durable"]
+    volumes:
+      - demo-data:/durable
+  iris:
+    image: iris-community:2026.3.0AI.154.0
+    depends_on:
+      init-durable:
+        condition: service_completed_successfully
+    entrypoint: ["/tini", "--", "/bin/bash", "/workspace/scripts/container-entrypoint.sh"]
+    ports:
+      - "127.0.0.1:${MED_AUDIT_PORT:-52884}:52773"
+    environment:
+      ISC_DATA_DIRECTORY: /durable/iris
+      # 本地演示首次初始化时允许 _SYSTEM 使用现有密码登录，无需强制改密。
+      MED_AUDIT_DEFAULT_LOGIN_NO_CHANGE: ${MED_AUDIT_DEFAULT_LOGIN_NO_CHANGE:-1}
+      MED_AUDIT_ENABLE_UPLOAD_WORKER: ${MED_AUDIT_ENABLE_UPLOAD_WORKER:-1}
+    volumes:
+      - demo-data:/durable
+      - ./src:/workspace/src:ro
+      - ./web:/workspace/web:ro
+      - ./scripts:/workspace/scripts:ro
+      - ./tools:/workspace/tools:ro
+      - ./requirements.txt:/workspace/requirements.txt:ro
+      - ./samples:/workspace/samples:ro
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /durable/iris/private/med-audit-ready && iris qlist IRIS | grep -qi running"]
+      interval: 10s
+      timeout: 5s
+      retries: 24
+      start_period: 60s
+  mcp-gateway:
+    image: iris-community:2026.3.0AI.154.0
+    entrypoint: ["/usr/irissys/bin/iris-mcp-server", "--config", "/gateway/gateway.toml", "run", "--status-tool=false"]
+    ports:
+      - "127.0.0.1:52885:52875"
+    volumes:
+      - ./artifacts/mcp-private/gateway.toml:/gateway/gateway.toml:ro
+    depends_on:
+      iris:
+        condition: service_healthy
+    restart: unless-stopped
+    profiles: ["mcp"]
+volumes:
+  demo-data:

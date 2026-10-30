@@ -1,0 +1,21 @@
+# Do not commit local credentials, environments, data, models, or runtime logs.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+.venv*/
+__pycache__/
+*.py[cod]
+.DS_Store
+artifacts/
+data/
+src/national/*
+!src/national/.gitkeep
+src/upload-private/
+*.log
+WORKLOG.md
+# 本地开发过程记录与历史参考代码，不提交。
+/development-archive/
