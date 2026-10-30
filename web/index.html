@@ -1,8 +1,8 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>医保智能审核 · 本地演示</title>
+  <title>Medical Insurance Audit · Local Demo</title>
   <link rel="icon" type="image/svg+xml" href="logo.svg"><link rel="stylesheet" href="style.css"><script src="admin-session.js" defer></script><script src="settings.js" defer></script><script src="mcp-tokens.js" defer></script><script src="management-i18n.js" defer></script><script src="flow.js" defer></script><script src="app.js" defer></script>
 </head>
 <body>
@@ -16,7 +16,7 @@
     <div class="sidebar-note">仅合成数据<br>演示环境 · 未接入医院</div>
   </aside>
   <div class="workspace">
-    <header class="topbar"><div><span class="eyebrow">MEDICAL INSURANCE AUDIT</span><h1 id="pageTitle">工作台</h1></div><div class="notice global-notice">本地演示 · 仅使用合成数据。演示提示和政策检索结果仅供人工核查，不构成违规认定或临床建议。</div><div class="top-status"><span id="site-user">正在检查登录…</span><button id="site-logout" class="secondary" type="button">退出登录</button><button id="languageToggle" class="secondary language-toggle" type="button" aria-label="Switch language">English</button></div></header>
+    <header class="topbar"><div><span class="eyebrow">MEDICAL INSURANCE AUDIT</span><h1 id="pageTitle">工作台</h1></div><div class="notice global-notice">本地演示 · 仅使用合成数据。演示提示和政策检索结果仅供人工核查，不构成违规认定或临床建议。</div><div class="top-status"><span id="site-user">正在检查登录…</span><button id="site-logout" class="secondary" type="button">退出登录</button><button id="languageToggle" class="secondary language-toggle" type="button" aria-label="切换至中文">中文</button></div></header>
     <main>
       <div id="app-error" class="notice" role="alert" hidden></div><dialog id="agentFlowDialog" class="flow-dialog"><div class="heading"><h2>AI 调查调用流程</h2><button id="agentFlowClose" class="secondary" type="button">关闭</button></div><p id="agentFlowInfo" class="hint" role="status"></p><div id="agentFlowContent" aria-live="polite"></div></dialog><dialog id="flowDialog" class="flow-dialog"><div class="heading"><h2>事件流程回放</h2><button id="flowClose" class="secondary" type="button">关闭</button></div><p id="flowDialogInfo" class="hint"></p><div id="eventFlow"></div></dialog>
       <div id="auditModule" hidden><div class="module-tabs" role="tablist" aria-label="审核任务"><a id="auditTasksTab" role="tab" href="#cases" aria-controls="page-cases" aria-selected="true">待办任务</a><a id="auditCasesTab" role="tab" href="#case-list" aria-controls="page-case-list" aria-selected="false" tabindex="-1">审核案例</a></div></div>

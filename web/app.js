@@ -792,7 +792,7 @@ const englishText = {
   "仅一条有效医嘱，病历不含肾功能线索。预期：不命中演示线索，仍触发演示依据检索。":"One active order, with no renal finding. Expected: no findings; policy retrieval still runs.",
   "同次就诊存在相同药品编码的医嘱":"Orders with the same drug code in one encounter", "病历肾功能信息与布洛芬医嘱需核对":"Renal history and ibuprofen order require review", "本地知识条目命中多条有效医嘱；需核实是否调整或重复计费。":"The local demo rule matched multiple active orders; check adjustments and possible duplicate charges.", "本地知识条目将病历片段与医嘱关联，不能据此直接认定违规。":"The local demo rule links a clinical note and an order; this alone does not establish a violation.", "核实医嘱状态及时间":"Verify order status and timing", "核对实际给药与收费明细":"Check actual administration and charges", "确认肾功能信息的时效和临床解释":"Verify the timing and clinical meaning of renal information", "核对剂量、实际给药与医保政策口径":"Check dose, administration and insurance policy", "FHIR 已接收":"FHIR received", "临床资源已路由":"Clinical resources routed", "审核事件已登记":"Audit event registered", "审核事件已分发":"Audit event dispatched", "就诊上下文已汇集":"Encounter context assembled", "本地知识与病历证据已检索":"Local knowledge and clinical evidence retrieved", "风险已送人工复核":"Findings sent for human review", "人工复核已记录":"Human review recorded"
 };
-let interfaceLanguage = "zh";
+let interfaceLanguage = "en";
 const originalTextNodes = new WeakMap(), originalAttributes = new WeakMap();
 /** Translate UI text and limited formatted labels while preserving original policy text and user input. */
 function translateInterfaceText(text) {
@@ -860,7 +860,7 @@ function setInterfaceLanguage(language) {
 }
 /** Observe asynchronous UI updates so pagination, statuses, and event lists follow the selected language. */
 function initLanguage() {
-  try { interfaceLanguage = localStorage.getItem("med-audit-language") === "en" ? "en" : "zh"; } catch (_) { interfaceLanguage = "zh"; }
+  try { interfaceLanguage = localStorage.getItem("med-audit-language") === "zh" ? "zh" : "en"; } catch (_) { interfaceLanguage = "en"; }
   const observer = new MutationObserver((records) => { for (const record of records) {
     if (record.type === "characterData") translateInterfaceNode(record.target);
     else for (const node of record.addedNodes) translateInterfaceNode(node);
