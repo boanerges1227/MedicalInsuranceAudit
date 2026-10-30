@@ -17,5 +17,7 @@ src/national/*
 src/upload-private/
 *.log
 WORKLOG.md
-# 本地开发过程记录与历史参考代码，不提交。
+# Keep local development records and historical reference code out of releases.
 /development-archive/
+# Keep browser acceptance screenshots and session data local.
+/.playwright-cli/

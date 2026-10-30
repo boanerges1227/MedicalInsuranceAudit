@@ -18,6 +18,17 @@ let flowPollTimer = null, flowPollSeq = 0, detailFlowPollTimer = null;
 let agentFlowTimer = null, agentFlowSeq = 0;
 const eventStatusLabels = {QUEUED: "排队中", RUNNING: "处理中", PROCESSING: "处理中", AUDIT_FAILED: "审核失败", SUCCEEDED: "处理成功", FAILED: "处理失败", SUPERSEDED: "已被新事件取代", HISTORY_UNAVAILABLE: "历史状态不可用"};
 const statusLabels = {PROCESSING: "处理中", AUDIT_FAILED: "审核失败", PENDING_REVIEW: "待复核", NEEDS_CHECK: "待核查", CONFIRMED: "已确认", DISMISSED: "已排除", PENDING: "待复核"};
+let selectedPublicationJobs = new Set(), activePublicationJob = 0;
+
+/* KNOWLEDGE_PUBLISH_HELPERS_START */
+/** Convert server publication states to stable UI labels while keeping unknown states visible instead of inferring success. */
+function publicationLabel(state) {
+  return {NOT_READY:"不可发布", REVIEW_REQUIRED:"待核实", READY:"可发布", PUBLISHED:"已发布", WITHDRAWN:"已撤回"}[state] || state || "待核实";
+}
+/** Include a job in batch publication only when the server confirms both vector success and READY publication state. */
+function canBatchPublish(job) { return job?.state === "SUCCEEDED" && job?.publication?.state === "READY"; }
+window.medKnowledgePublishUI = {publicationLabel, canBatchPublish};
+/* KNOWLEDGE_PUBLISH_HELPERS_END */
 
 /** Write dynamic content through text nodes so clinical or policy text cannot execute as HTML. */
 function el(tag, text, className) {
@@ -470,12 +481,14 @@ async function loadPolicies(event) {
     const result = await api(`api/policies?query=${encodeURIComponent($("policyQuery").value.trim())}`); if (request !== policyRequest) return;
     const items = result.items || [];
     const total = Number.isFinite(result.total) ? result.total : null;
-    const draw = () => { box.replaceChildren(); const hint = el("p", undefined, "hint"); if (total !== null) hint.append(document.createTextNode(`知识库共 ${total} 条虚构演示依据 · `)); hint.append(document.createTextNode("关键词检索 · 当前接口最多返回 20 条 · 来源与生效状态须人工核实")); box.append(hint);
+    const draw = () => { box.replaceChildren(); const hint = el("p", undefined, "hint"); if (total !== null) hint.append(document.createTextNode(`知识库共 ${total} 条依据 · `)); hint.append(document.createTextNode("关键词检索 · 当前接口最多返回 20 条 · 来源与生效状态须人工核实")); box.append(hint);
     for (const item of paginate("policies", items, draw)) {
       const card = el("article", undefined, "risk-card"); const dates = item.dates || {};
       const kind = {policy: "政策正文", attachment: "政策附件", supplement: "补充资料"}[item.recordType] || "类型待核";
       const parents = Array.isArray(item.parentPolicyIds) && item.parentPolicyIds.length ? ` · 关联政策 ${item.parentPolicyIds.join("、")}` : "";
-      card.append(el("div", `${kind} · ${item.sourceId || "来源待核"}${parents}`, "risk-meta"), el("h3", item.title || "标题待核"), el("p", item.excerpt || "暂无提取片段"), el("p", `发布日期：${dates.publication_date || dates.publicationDate || "待核"} · 生效日期：${dates.effective_date || dates.effectiveDate || "待核"}`, "hint"), el("p", `核查标记：${Array.isArray(item.reviewFlags) ? item.reviewFlags.join("、") || "待核" : item.reviewFlags || "待核"}`, "hint"));
+      const origin = item.synthetic ? "合成演示依据" : "已发布政策依据";
+      const published = item.synthetic ? "" : ` · 来源任务 ${item.sourceJobId || "—"} · 发布人 ${item.publishedBy || "—"} · 发布时间 ${formatIrisTime(item.publishedAt)}`;
+      card.append(el("div", `${origin} · ${kind} · ${item.sourceId || "来源待核"}${parents}`, "risk-meta"), el("h3", item.title || "标题待核"), el("p", item.excerpt || "暂无提取片段"), el("p", `适用地区：${item.region || "待核"} · 发布日期：${dates.publication_date || dates.publicationDate || "待核"} · 生效日期：${dates.effective_date || dates.effectiveDate || dates.effective_status || "待核"}`, "hint"), el("p", `核查标记：${Array.isArray(item.reviewFlags) ? item.reviewFlags.join("、") || "无" : item.reviewFlags || "无"}${published}`, "hint"));
       const link = sourceLink(item.sourceUrl); if (link) card.append(link); box.append(card);
     }
     if (!items.length) box.append(el("p", "没有匹配的政策片段。", "empty")); }; draw();
@@ -776,6 +789,8 @@ const englishText = {
   "业务阶段回放 · 动画速度不代表真实耗时":"Recorded business stages · Animation speed is not actual elapsed time", "该事件的阶段记录不可用。":"Stage history is unavailable for this event.", "重新回放":"Replay", "事件流程回放":"Event flow replay", "查看执行流程":"View execution flow", "关闭":"Close", "事件处理失败":"Event processing failed",
   "查询内容无效或超过模型长度限制。":"The query is invalid or exceeds the model length limit.", "检索上传文档":"Search uploaded documents", "检索上传内容；来源与适用性需人工核实，不代表医保政策依据。":"Search uploaded content. Verify its source and applicability; it is not an insurance policy authority.", "输入要检索的内容":"Enter text to search", "上传文档检索内容":"Uploaded document search query", "输入查询内容后开始检索。":"Enter a query to search.", "请输入检索内容。":"Enter a search query.", "正在检索上传文档…":"Searching uploaded documents…", "未找到匹配的上传文档。":"No matching uploaded documents found.", "检索完成，结果仅供人工核实。":"Search complete; verify results manually.", "上传内容 · 待人工核实":"Uploaded content · Human verification required", "任务编号":"Job ID", "片段序号":"Chunk index", "相似度":"Similarity", "模型指纹":"Model fingerprint", "检索失败，请检查服务状态。":"Search failed; check service status.", "返回结果不可用。":"Search results are unavailable.",
   "文件向量库":"Document Vectors", "上传文件":"Upload document", "刷新状态":"Refresh status", "选择文件":"Choose file", "上传并向量化":"Upload and vectorize", "导入记录":"Import history", "上传文档后使用本地中文模型生成向量并写入 IRIS。":"Upload documents and generate vectors locally for storage in IRIS.", "处理进程尚未连接，请检查本地启动脚本。":"Worker has not connected; check the local startup script.", "暂无导入记录。":"No imports yet.", "正在上传…":"Uploading…", "已提交，等待本地向量化。":"Submitted; waiting for local vectorization.", "请选择不超过 2 MB 的非空文件。":"Choose a non-empty file up to 2 MB.", "支持 UTF-8 编码的 TXT、Markdown 和 DOCX，单个文件不超过 2 MB。上传内容独立保存，来源与适用性均待人工核实。":"Supports UTF-8 TXT, Markdown and DOCX files up to 2 MB. Uploads are stored separately; verify their source and applicability.",
+  "核实并发布":"Review and publish", "批量发布":"Publish selected", "发布到知识依据库":"Publish to Knowledge Evidence Library", "撤回发布":"Withdraw publication", "已核对原文依据、地区、日期和例外条件":"I verified the original source, region, dates, and exceptions", "保存核实草稿":"Save review draft", "自动提取结果只作为草稿。请核对官方原文、地区、日期和例外条件。":"Automatically extracted metadata is only a draft. Verify the official source, region, dates, and exceptions.", "向量化完成不代表政策已经核实；只有状态为“可发布”的任务才能进入知识依据库。":"Vectorization does not verify a policy. Only items marked Ready can enter the Knowledge Evidence Library.", "检索已发布政策依据和明确标记的合成样例；适用性仍需人工核实。":"Search published policy evidence and clearly marked synthetic samples; applicability still requires human review.", "知识依据分页":"Knowledge evidence pages", "导入记录分页":"Import history pages", "适用地区":"Applicable region", "资料类型":"Record type", "官方原文地址":"Official source URL", "发布日期":"Publication date", "生效日期":"Effective date", "生效状态说明":"Effective status", "例外条件或适用性说明":"Exceptions or applicability notes", "关联政策编号":"Related policy IDs", "原文哈希":"Source hash", "核实说明":"Review note", "该资料仍有待核实内容":"This item still needs verification", "原文片段":"Source excerpt", "来源编号":"Source ID", "标题":"Title",
+  "未明确或不适用时必须填写":"Required when no effective date applies", "多个编号用逗号分隔":"Separate multiple IDs with commas", "元数据校验通过，可发布到知识依据库。":"Metadata validated; ready to publish.", "正在读取发布草稿…":"Loading publication draft…", "已发布到知识依据库。":"Published to the Knowledge Evidence Library.", "知识依据已撤回，原上传向量仍保留。":"Publication withdrawn; the original upload vectors are retained.",
   "退出登录":"Sign out", "正在检查登录…":"Checking session…", "管理员访问":"Administrator access", "正在检查管理员会话…":"Checking administrator session…", "管理员未登录":"Administrator not signed in", "请使用 IRIS 管理员账号登录。":"Sign in with an IRIS administrator account.", "用户名":"Username", "密码":"Password", "登录":"Sign in", "退出管理员":"Sign out", "已退出管理员会话。":"Administrator signed out.",
   "MCP 服务":"MCP Service", "MCP Token 管理":"MCP Tokens", "AI 设置":"AI Settings", "医保审核只读 MCP 工具与已记录的调用情况。":"Read-only medical audit MCP tools and recorded calls.", "历史调用统计并非实时连通性探测。客户端需要独立 Token 和明确病例授权。":"Historical calls do not establish current connectivity. Clients require a separate token and explicit case access.", "服务与工具":"Service and tools", "接口按病例和预期版本限制访问；Token 撤销和过期会在每次调用时复核。":"Access is limited by case and version; expiry and revocation are checked on every call.", "管理 MCP Token →":"Manage MCP Tokens →", "暂无调用记录。":"No calls recorded.", "实时网关连通性：未检测。":"Live gateway connectivity: Not checked.",
   "运行大屏":"System Overview", "系统运行大屏":"System Overview", "汇总本地演示系统当前可读取的运行数据。":"A summary of currently available local demo system data.", "刷新大屏":"Refresh Overview", "仅统计本地合成数据；历史调用结果不代表服务当前可用。":"Synthetic local data only; past calls do not establish current service availability.", "审核与事件状态":"Audit and event status", "AI 与服务":"AI and services", "合成就诊":"Synthetic encounters", "审核处理中":"Audits in progress", "待人工复核":"Awaiting review", "审核失败":"Audit failed", "病例状态":"Case status", "待处理事件":"Active events", "失败事件":"Failed events", "事件台账":"Event ledger", "不可用":"Unavailable", "事件监控数据不可用。":"Event data unavailable.", "IRIS Production：运行中":"IRIS Production: Running", "IRIS Production：未运行":"IRIS Production: Stopped", "IRIS Production：状态不可用":"IRIS Production: Unavailable", "AI Hub：历史调查结果可在案例详情查看；当前模型连通性未检测。":"AI Hub: View past investigations in case details; current model connectivity has not been tested.", "MCP 服务：状态不可用。":"MCP service: Status unavailable.",
@@ -801,7 +816,13 @@ function translateInterfaceText(text) {
   if (englishText[trimmed]) return text.replace(trimmed, englishText[trimmed]);
   let result = text;
   result = result.replace(/已接收 (\d+) \/ 3 条合成事件。/g, "Accepted $1 / 3 synthetic events.");
-  result = result.replace(/处理进程最近心跳：/g, "Worker last heartbeat: ").replace(/ · (上传中|排队中|向量化中|已导入|处理失败) · (\d+) 个片段 · 待核实/g, (_, state, count) => ` · ${{"上传中":"Uploading","排队中":"Queued","向量化中":"Vectorizing","已导入":"Imported","处理失败":"Failed"}[state]} · ${count} chunks · To verify`).replace(/ · 文件格式、内容或模型长度无效/g, " · Invalid document or content").replace(/ · 模型或 IRIS 处理失败，请检查处理进程/g, " · Model or IRIS processing failed; check the worker");
+  result = result.replace(/处理进程最近心跳：/g, "Worker last heartbeat: ")
+    .replace(/(^| · )(上传中|排队中|向量化中|已导入|处理失败) · (\d+) 个片段 · (待核实|可发布|已发布|已撤回|不可发布)/g, (_, prefix, state, count, publication) => `${prefix}${{"上传中":"Uploading","排队中":"Queued","向量化中":"Vectorizing","已导入":"Imported","处理失败":"Failed"}[state]} · ${count} chunks · ${{"待核实":"To verify","可发布":"Ready","已发布":"Published","已撤回":"Withdrawn","不可发布":"Not ready"}[publication]}`)
+    .replace(/已选择 (\d+) 条可发布任务/g, "$1 ready items selected")
+    .replace(/^选择发布 /g, "Select for publication ")
+    .replace(/发布人：/g, "Published by: ").replace(/ · 发布时间：/g, " · Published at: ")
+    .replace(/尚不能发布：/g, "Cannot publish: ").replace(/缺少来源编号/g, "Source ID is required").replace(/缺少标题/g, "Title is required").replace(/缺少适用地区/g, "Region is required").replace(/缺少资料类型/g, "Record type is required").replace(/官方原文地址无效/g, "Official source URL is invalid").replace(/缺少发布日期/g, "Publication date is required").replace(/缺少生效日期或生效状态说明/g, "Effective date or status is required").replace(/资料仍标记为待核实/g, "The item is still marked for review").replace(/尚未确认核实声明/g, "Review confirmation is required").replace(/元数据超过长度限制/g, "Metadata exceeds the length limit")
+    .replace(/ · 文件格式、内容或模型长度无效/g, " · Invalid document or content").replace(/ · 模型或 IRIS 处理失败，请检查处理进程/g, " · Model or IRIS processing failed; check the worker");
   result = result.replace(/今日调查次数（UTC）：(\d+) \/ (\d+)；不构成金额预算上限。/g, "Today’s attempts (UTC): $1 / $2; this is not a monetary budget.").replace(/输入 \/ 输出 Token：/g, "Input / output tokens: ").replace(/耗时：/g, "Elapsed: ").replace(/证据引用：/g, "Evidence references: ").replace(/调查未完成：/g, "Investigation incomplete: ").replace(/提交未完成：/g, "Submission incomplete: ").replace(/调查状态不可用：/g, "Investigation status unavailable: ").replace(/；请刷新状态，不会自动重试。/g, "; refresh status; no automatic retry.").replace(/；请人工复核。/g, "; human review required.").replace(/第 (\d+) 页/g, "Page $1").replace(/共 (\d+) 条 · 第 (\d+) \/ (\d+) 页/g, "$1 items · Page $2 / $3")
     .replace(/AI 历史调查：(\d+) 次，模型已启动 (\d+) 次，成功 (\d+) \/ 失败 (\d+)。/g, "Recorded AI investigations: $1; model started: $2; succeeded: $3 / failed: $4.")
     .replace(/已记录用量（(\d+) 次）：输入 (\d+) \/ 输出 (\d+) Token。/g, "Recorded usage ($1 runs): $2 input / $3 output tokens.")
@@ -881,12 +902,87 @@ async function loadUploads() {
     $("uploadWorker").textContent = data.workerHeartbeat ? `处理进程最近心跳：${formatIrisTime(data.workerHeartbeat)}` : "处理进程尚未连接，请检查本地启动脚本。";
     if (!data.jobs.length) { box.textContent = "暂无导入记录。"; return; }
     const labels = {UPLOADING:"上传中", QUEUED:"排队中", RUNNING:"向量化中", SUCCEEDED:"已导入", FAILED:"处理失败"};
+    const currentIds = new Set(data.jobs.filter(canBatchPublish).map(job => Number(job.id)));
+    selectedPublicationJobs = new Set([...selectedPublicationJobs].filter(id => currentIds.has(id)));
     for (const job of paginate("uploads", data.jobs, loadUploads)) {
-      const row = el("div", null, "case-row");
-      row.append(el("strong", job.filename), el("span", ` · ${labels[job.state] || job.state} · ${job.chunks} 个片段 · 待核实${job.error ? " · " + (job.error === "INVALID_DOCUMENT" ? "文件格式、内容或模型长度无效" : "模型或 IRIS 处理失败，请检查处理进程") : ""}`));
+      const row = el("article", undefined, "upload-job-row"), selection = el("label", undefined, "upload-job-select"), info = el("div", undefined, "upload-job-info"), actions = el("div", undefined, "actions");
+      const checkbox = document.createElement("input"); checkbox.type="checkbox"; checkbox.checked=selectedPublicationJobs.has(Number(job.id)); checkbox.disabled=!canBatchPublish(job); checkbox.setAttribute("aria-label", `选择发布 ${job.filename || job.id}`);
+      checkbox.addEventListener("change",()=>{if(checkbox.checked)selectedPublicationJobs.add(Number(job.id));else selectedPublicationJobs.delete(Number(job.id));updatePublishSelection();});
+      selection.append(checkbox);
+      const publication = job.publication || {state:"REVIEW_REQUIRED"};
+      info.append(el("strong", job.filename), el("span", `${labels[job.state] || job.state} · ${job.chunks} 个片段 · ${publicationLabel(publication.state)}${job.error ? " · " + (job.error === "INVALID_DOCUMENT" ? "文件格式、内容或模型长度无效" : "模型或 IRIS 处理失败，请检查处理进程") : ""}`, "hint"));
+      if (publication.state === "PUBLISHED") info.append(el("small", `发布人：${publication.publishedBy || "—"} · 发布时间：${formatIrisTime(publication.publishedAt)}`, "hint"));
+      if (job.state === "SUCCEEDED" && publication.state !== "PUBLISHED") { const review=el("button","核实并发布","secondary"); review.type="button"; review.addEventListener("click",()=>openKnowledgePublish(job.id)); actions.append(review); }
+      if (publication.state === "PUBLISHED") { const withdraw=el("button","撤回发布","secondary"); withdraw.type="button"; withdraw.addEventListener("click",()=>withdrawKnowledge(job.id)); actions.append(withdraw); }
+      row.append(selection,info,actions);
       box.append(row);
     }
+    updatePublishSelection();
   } catch (error) { $("uploadJobs").textContent = `加载失败：${error.message}`; }
+}
+
+/** Update the batch selection count; the button accepts only jobs marked READY by the server. */
+function updatePublishSelection() {
+  $("uploadPublishSelection").textContent = `已选择 ${selectedPublicationJobs.size} 条可发布任务`;
+  $("uploadPublishBatch").disabled = selectedPublicationJobs.size === 0;
+}
+
+/** Open the metadata review dialog for one job and place all uploaded text into value or textContent. */
+async function openKnowledgePublish(jobId) {
+  activePublicationJob = Number(jobId); $("knowledgePublishIssues").textContent="正在读取发布草稿…"; $("knowledgePublishNow").disabled=true;
+  try {
+    const data=await api(`api/uploads/${encodeURIComponent(jobId)}/publish`),metadata=data.metadata||{};
+    $("publishSourceId").value = metadata.sourceId || ""; $("publishTitle").value = metadata.title || "";
+    $("publishRegion").value = metadata.region || ""; $("publishRecordType").value = metadata.recordType || "policy";
+    $("publishSourceUrl").value = metadata.sourceUrl || ""; $("publishPublicationDate").value = metadata.publicationDate || "";
+    $("publishEffectiveDate").value = metadata.effectiveDate || ""; $("publishEffectiveStatus").value = metadata.effectiveStatus || "";
+    $("publishExceptionConditions").value = metadata.exceptionConditions || ""; $("publishParentPolicyIds").value = Array.isArray(metadata.parentPolicyIds)?metadata.parentPolicyIds.join(", "):"";
+    $("publishSourceSha256").value = typeof metadata.sourceSha256 === "string" ? metadata.sourceSha256 : JSON.stringify(metadata.sourceSha256 || "");
+    $("publishReviewNote").value = metadata.reviewNote || ""; $("publishNeedsReview").checked = Boolean(metadata.needsReview); $("publishConfirmed").checked = Boolean(metadata.confirmed);
+    $("knowledgePublishExcerpt").textContent = data.excerpt || "";
+    showPublishIssues(data.issues || []); $("knowledgePublishNow").disabled = data.publication?.state !== "READY";
+    if (!$("knowledgePublishDialog").open) $("knowledgePublishDialog").showModal();
+  } catch(error) { $("knowledgePublishIssues").textContent=`发布草稿不可用：${error.message}`; }
+}
+
+/** Build the publication draft from fixed form fields without accepting a publisher or publication state from the page. */
+function knowledgePublishDraft() {
+  return {sourceId:$("publishSourceId").value.trim(),title:$("publishTitle").value.trim(),region:$("publishRegion").value.trim(),recordType:$("publishRecordType").value,sourceUrl:$("publishSourceUrl").value.trim(),publicationDate:$("publishPublicationDate").value.trim(),effectiveDate:$("publishEffectiveDate").value.trim(),effectiveStatus:$("publishEffectiveStatus").value.trim(),exceptionConditions:$("publishExceptionConditions").value.trim(),parentPolicyIds:$("publishParentPolicyIds").value.split(/[,，]/).map(value=>value.trim()).filter(Boolean),sourceSha256:$("publishSourceSha256").value.trim(),reviewNote:$("publishReviewNote").value.trim(),needsReview:$("publishNeedsReview").checked,confirmed:$("publishConfirmed").checked};
+}
+
+/** Map stable error codes to readable issues while retaining unknown codes for diagnosis. */
+function showPublishIssues(issues) {
+  const labels={SOURCE_ID_REQUIRED:"缺少来源编号",TITLE_REQUIRED:"缺少标题",REGION_REQUIRED:"缺少适用地区",RECORD_TYPE_REQUIRED:"缺少资料类型",INVALID_RECORD_TYPE:"资料类型无效",INVALID_SOURCE_URL:"官方原文地址无效",PUBLICATION_DATE_REQUIRED:"缺少发布日期",INVALID_PUBLICATION_DATE:"发布日期格式无效",INVALID_EFFECTIVE_DATE:"生效日期格式无效",EFFECTIVE_STATUS_REQUIRED:"缺少生效日期或生效状态说明",KNOWLEDGE_REVIEW_REQUIRED:"资料仍标记为待核实",KNOWLEDGE_CONFIRMATION_REQUIRED:"尚未确认核实声明",KNOWLEDGE_METADATA_TOO_LONG:"元数据超过长度限制"};
+  $("knowledgePublishIssues").textContent = issues.length ? `尚不能发布：${issues.map(code=>labels[code]||code).join("；")}` : "元数据校验通过，可发布到知识依据库。";
+}
+
+/** Save the reviewed draft and use the server response to decide whether publication is allowed. */
+async function saveKnowledgeDraft(event) {
+  if(event)event.preventDefault(); if(!activePublicationJob)return null;
+  const result=await api(`api/uploads/${encodeURIComponent(activePublicationJob)}/publish-draft`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(knowledgePublishDraft())});
+  showPublishIssues(result.issues||[]); $("knowledgePublishNow").disabled=result.state!=="READY"; return result;
+}
+
+/** Save the current form and publish one job, keeping the dialog open for any validation failure. */
+async function publishKnowledge() {
+  $("knowledgePublishNow").disabled=true;
+  try { const draft=await saveKnowledgeDraft(); if(draft?.state!=="READY")return; await api(`api/uploads/${encodeURIComponent(activePublicationJob)}/publish`,{method:"POST",headers:{"Content-Type":"application/json"},body:"{}"}); $("knowledgePublishIssues").textContent="已发布到知识依据库。"; await loadUploads(); }
+  catch(error){$("knowledgePublishIssues").textContent=`发布失败：${error.message}`;}
+}
+
+/** Publish the selected READY jobs and display the server's per-item statistics. */
+async function publishSelectedKnowledge() {
+  const ids=[...selectedPublicationJobs]; if(!ids.length)return; $("uploadPublishBatch").disabled=true;
+  try { const result=await api("api/uploads/publish-batch",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({jobIds:ids})}); $("uploadPublishStatus").textContent=`批量发布完成：成功 ${result.succeeded} 条，失败 ${result.failed} 条。`; selectedPublicationJobs.clear(); await loadUploads(); }
+  catch(error){$("uploadPublishStatus").textContent=`批量发布失败：${error.message}`;}
+  finally{updatePublishSelection();}
+}
+
+/** Require an administrator reason before withdrawal; canceling the prompt sends no request. */
+async function withdrawKnowledge(jobId) {
+  const reason=window.prompt("请输入撤回原因"); if(!reason?.trim())return;
+  try { await api(`api/uploads/${encodeURIComponent(jobId)}/withdraw`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({reason:reason.trim()})}); $("uploadPublishStatus").textContent="知识依据已撤回，原上传向量仍保留。"; await loadUploads(); }
+  catch(error){$("uploadPublishStatus").textContent=`撤回失败：${error.message}`;}
 }
 /** Send fixed-size Base64 chunks and never interpret filenames as paths in the browser or server. */
 async function uploadFile(event) {
@@ -941,6 +1037,10 @@ async function searchUploadedDocuments(event) {
 $("uploadSearchForm").addEventListener("submit", searchUploadedDocuments);
 $("uploadForm").addEventListener("submit", uploadFile);
 $("uploadRefresh").addEventListener("click", loadUploads);
+$("knowledgePublishForm").addEventListener("submit", saveKnowledgeDraft);
+$("knowledgePublishNow").addEventListener("click", publishKnowledge);
+$("knowledgePublishClose").addEventListener("click", () => $("knowledgePublishDialog").close());
+$("uploadPublishBatch").addEventListener("click", publishSelectedKnowledge);
 // Refresh automatically only on the vector library page to show background processing progress.
 setInterval(() => { if (location.hash === "#uploads") loadUploads(); }, 5000);
 

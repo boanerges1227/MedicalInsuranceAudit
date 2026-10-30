@@ -1,9 +1,9 @@
 Class HD.Governance Extends %RegisteredObject
 {
-/// Search fictional demo excerpts by literal keywords only; deduplicate by source and limit results.
+/// Search synthetic samples and published knowledge evidence by keyword; exclude staged uploads and withdrawn content.
 ClassMethod Policies(query As %String = "") As %DynamicObject
 {
-    set items=[],seen={},counted={},prefix="synthetic-demo/",query=$zstrip(query,"<>W"),sourceCount=0
+    set items=[],seen={},counted={},syntheticPrefix="synthetic-demo/",publishedPrefix="published-upload/",query=$zstrip(query,"<>W"),sourceCount=0
     // Generate SQL at class compilation so the web identity can read data without dynamic query plan generation permissions.
     &sql(DECLARE policyCursor CURSOR FOR SELECT SourcePath,ChunkText,Metadata FROM HD.NationalVectors ORDER BY SourcePath,ChunkId)
     &sql(OPEN policyCursor)
@@ -11,10 +11,16 @@ ClassMethod Policies(query As %String = "") As %DynamicObject
     for {
         &sql(FETCH policyCursor INTO :path,:text,:metadata)
         if SQLCODE'=0 { quit }
-        // Check both stored and metadata source paths to exclude regional or invalid paths from displayed results.
-        if ($extract(path,1,$length(prefix))'=prefix)!(path["..") { continue }
+        // Validate the stored path, metadata path, and publication state together so staged or withdrawn uploads cannot enter the knowledge library.
+        if path[".." { continue }
         set meta={}.%FromJSON(metadata)
         if meta.%Get("original_path","")'=path { continue }
+        set synthetic=$extract(path,1,$length(syntheticPrefix))=syntheticPrefix,published=$extract(path,1,$length(publishedPrefix))=publishedPrefix
+        if 'synthetic,'published { continue }
+        if published {
+            set sourceJobId=+meta.%Get("sourceJobId",0)
+            if (sourceJobId<1)!(meta.%Get("publicationStatus","")'="PUBLISHED")!($get(^HDUpload("publish",sourceJobId,"state"))'="PUBLISHED")!($get(^HDUpload("publish",sourceJobId,"sourcePath"))'=path) { continue }
+        } else { set sourceJobId=0 }
         set sourceId=meta.%Get("source_id","")
         if sourceId="" { continue }
         // Count all compliant source documents in the knowledge base, independent of the keyword and display limit, for the page to show the data volume.
@@ -28,7 +34,7 @@ ClassMethod Policies(query As %String = "") As %DynamicObject
         set pos=$find(text,query),start=1,length=500
         if (query'="")&&(pos>0) { set start=$select(pos-$length(query)-100>1:pos-$length(query)-100,1:1),length=$select($length(query)+100>500:$length(query)+100,1:500) }
         do seen.%Set(path,1)
-        do items.%Push({"title":(title),"sourceId":(sourceId),"recordType":(meta.%Get("record_type","")),"parentPolicyIds":(meta.%Get("parent_policy_ids",[])),"sourceUrl":(meta.%Get("source_url","")),"excerpt":($extract(text,start,start+length-1)),"dates":(meta.%Get("dates",{})),"reviewFlags":(meta.%Get("review_flags",[]))})
+        do items.%Push({"title":(title),"sourceId":(sourceId),"recordType":(meta.%Get("record_type","")),"parentPolicyIds":(meta.%Get("parent_policy_ids",[])),"sourceUrl":(meta.%Get("source_url","")),"excerpt":($extract(text,start,start+length-1)),"dates":(meta.%Get("dates",{})),"reviewFlags":(meta.%Get("review_flags",[])),"region":(meta.%Get("region","")),"synthetic":(synthetic),"publicationStatus":(meta.%Get("publicationStatus",$select(synthetic:"SYNTHETIC",1:""))),"publishedAt":(meta.%Get("publishedAt","")),"publishedBy":(meta.%Get("publishedBy","")),"needsReview":(meta.%Get("needsReview",1)),"sourceJobId":(sourceJobId)})
     }
     set fetchCode=SQLCODE
     &sql(CLOSE policyCursor)

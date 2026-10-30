@@ -43,7 +43,7 @@ ClassMethod Submit(id As %String) As %DynamicObject
 ClassMethod List() As %DynamicObject
 {
     set out=[],id="",count=0
-    for  { set id=$order(^HDUpload("job",id),-1) quit:id=""  quit:count=100  set count=count+1 do out.%Push({"id":(+id),"filename":($get(^HDUpload("job",id,"filename"))),"state":($get(^HDUpload("job",id,"state"))),"chunks":(+$get(^HDUpload("job",id,"chunks"))),"error":($get(^HDUpload("job",id,"error"))),"created":($get(^HDUpload("job",id,"created")))}) }
+    for  { set id=$order(^HDUpload("job",id),-1) quit:id=""  quit:count=100  set count=count+1 do out.%Push({"id":(+id),"filename":($get(^HDUpload("job",id,"filename"))),"state":($get(^HDUpload("job",id,"state"))),"chunks":(+$get(^HDUpload("job",id,"chunks"))),"error":($get(^HDUpload("job",id,"error"))),"created":($get(^HDUpload("job",id,"created"))),"publication":(##class(HD.KnowledgePublish).Summary(id))}) }
     return {"jobs":(out),"workerHeartbeat":($get(^HDUpload("heartbeat")))}
 }
 

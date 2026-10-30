@@ -11,8 +11,8 @@ ClassMethod SelfTest()
     write "NATIONAL_VECTOR_SELFTEST_OK",!
 }
 
-/// Create a separate national policy vector table with source metadata and a fixed model dimension.
-ClassMethod Install()
+/// Create the fixed-dimension national policy vector table; HTTP callers may suppress setup output to preserve JSON responses.
+ClassMethod Install(silent As %Boolean = 0)
 {
     set st=##class(%SQL.Statement).%New(),sc=st.%Prepare("SELECT COUNT(*) AS total FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?")
     if $system.Status.IsError(sc) { throw ##class(%Exception.General).%New("SCHEMA_CHECK_FAILED") }
@@ -23,7 +23,7 @@ ClassMethod Install()
         set rs=##class(%SQL.Statement).%ExecDirect(,sql)
         if rs.%SQLCODE<0 { throw ##class(%Exception.General).%New("CREATE_TABLE_FAILED: "_rs.%Message) }
     }
-    write "NATIONAL_VECTOR_SCHEMA_READY",!
+    if 'silent { write "NATIONAL_VECTOR_SCHEMA_READY",! }
 }
 
 /// Validate source scope, vector length, and model hash; skip existing IDs only when their content is identical.
@@ -69,6 +69,21 @@ ClassMethod Search(csv As %String, top As %Integer = 10) As %DynamicArray
     set sc=st.%Prepare(sql) if $system.Status.IsError(sc) { throw ##class(%Exception.General).%New("SEARCH_PREPARE_FAILED") }
     set rs=st.%Execute(csv),out=[]
     while rs.%Next() { do out.%Push({"chunk_id":(rs.%Get("ChunkId")),"text":(rs.%Get("ChunkText")),"score":(rs.%Get("score")),"metadata":({}.%FromJSON(rs.%Get("Metadata")))}) }
+    if rs.%SQLCODE<0 { throw ##class(%Exception.General).%New("SEARCH_FAILED") }
+    return out
+}
+
+/// Restrict candidates by model fingerprint and source directory before ranking vectors so corpora cannot contaminate each other.
+ClassMethod SearchScoped(csv As %String, modelHash As %String, sourcePrefix As %String, top As %Integer = 10) As %DynamicArray
+{
+    if ($length(csv,",")'=512)!(top<1)!(top>50)!(modelHash="")!($length(modelHash)>128) { throw ##class(%Exception.General).%New("INVALID_SEARCH_INPUT") }
+    // Require a wildcard-free directory prefix; SQL appends only the trailing percent sign and binds every value.
+    if (sourcePrefix="")!($length(sourcePrefix)>512)!(sourcePrefix["..")!(sourcePrefix["%")!(sourcePrefix["_")!($extract(sourcePrefix,*)'="/") { throw ##class(%Exception.General).%New("INVALID_SEARCH_SCOPE") }
+    set st=##class(%SQL.Statement).%New(),st.%SelectMode=1
+    set sql="SELECT TOP "_top_" ChunkId,SourcePath,ChunkText,Metadata,VECTOR_COSINE(Embedding,TO_VECTOR(?,FLOAT,512)) AS score FROM HD.NationalVectors WHERE ModelHash = ? AND SourcePath LIKE ? ORDER BY score DESC"
+    set sc=st.%Prepare(sql) if $system.Status.IsError(sc) { throw ##class(%Exception.General).%New("SEARCH_PREPARE_FAILED") }
+    set rs=st.%Execute(csv,modelHash,sourcePrefix_"%"),out=[]
+    while rs.%Next() { do out.%Push({"chunk_id":(rs.%Get("ChunkId")),"source_path":(rs.%Get("SourcePath")),"text":(rs.%Get("ChunkText")),"score":(rs.%Get("score")),"metadata":({}.%FromJSON(rs.%Get("Metadata")))}) }
     if rs.%SQLCODE<0 { throw ##class(%Exception.General).%New("SEARCH_FAILED") }
     return out
 }

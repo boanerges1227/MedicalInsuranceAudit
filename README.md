@@ -17,9 +17,9 @@ Medical Insurance Audit Evidence Assistant is a desktop demonstration for explor
 | FHIR test entry | Submits sample FHIR Bundles to the local demonstration endpoint, including duplicate-order and renal-function scenarios. |
 | FHIR file intake | Uploads a synthetic JSON file through a custom inbound adapter; displays file status, recorded business stages and the associated case. |
 | Audit tasks | Creates native Workflow Engine tasks for findings; reviewers can claim and complete them with a recorded decision. |
-| Knowledge Evidence Library | Keyword search over two labelled fictional evidence snippets; case-review evidence is matched automatically by IRIS vector search. |
+| Knowledge Evidence Library | Searches clearly labelled synthetic fixtures and uploaded documents that an administrator has reviewed and explicitly published. Published entries retain source, region, date, exception and reviewer metadata. |
 | AI investigation | On explicit request, uses AI Hub and restricted case/evidence tools to prepare a cited recommendation for human review. A model configuration is required. |
-| Document vector library | Accepts synthetic TXT, Markdown and DOCX files, generates embeddings locally and stores them in a separate IRIS vector table. Uploaded documents can be searched in the document library; they are not included in the separate fictional-policy search or AI evidence tools. |
+| Document vector library | Accepts TXT, Markdown and DOCX files, generates embeddings locally and stores them in a separate IRIS vector table. An administrator can review extracted metadata, publish eligible documents to the Knowledge Evidence Library, batch-publish ready items, or withdraw a publication without deleting the upload. |
 | Operations | Displays system overview, event history, recorded application stages and the embedded IRIS Production management page. |
 | MCP and AI settings | Provides model configuration and, after optional gateway setup, MCP service status, call logs and client-token management. |
 
@@ -31,6 +31,7 @@ The included policy-like texts and vectors are demonstration fixtures: their 512
 - **Native human workflow:** Audit findings enter the IRIS Workflow Engine for reviewers to claim and decide. Synchronization issues and uncertain dispatch outcomes remain available for human investigation.
 - **AI Hub with restricted tools:** An explicitly requested investigation uses an Agent and authorized tools for case and fictional evidence, validates the recommendation and citations, and leaves the decision to a human. A model provider must be configured; a visible interface does not prove a model call occurred.
 - **Vector Search and Embedded Python:** Fictional evidence uses IRIS Vector Search. Uploaded documents have a separate vector store; a Production operation uses Embedded Python and the same model to embed document-search queries.
+- **Human-governed knowledge publication:** Vectorization never makes an upload authoritative. Publication requires a valid official source URL, source ID, region, publication date, effective date or status, cleared `needsReview` flag and an explicit reviewer confirmation. Publishing copies the reviewed chunks transactionally; withdrawal removes only that published copy.
 - **Reproducible deployment:** Docker Compose configures the application and persistent volume; the package is available from the public ZPM registry and also supports installation from local source. Both paths initialize the demo resources.
 
 ## Technology
@@ -65,9 +66,15 @@ flowchart TD
     K --> L[Separate IRIS upload-vector table]
     Q[Document search query] --> P[Embedded Python query embedding]
     P --> L
+    L --> M[Administrator reviews provenance, dates and exceptions]
+    M --> N{Ready and explicitly confirmed?}
+    N -- Yes --> O[Publish reviewed copy to Knowledge Evidence Library]
+    N -- No --> R[Keep in review-required state]
+    O --> S[Search published evidence]
+    O --> W[Withdraw publication while retaining upload]
 ```
 
-A workflow task for a new event is terminal after completion; historical events without workflow markers retain the legacy review behavior. The upload path is independent: uploaded documents are not automatically used by the fictional-evidence search. The flow view displays recorded application stages, not a complete native IRIS message trace.
+A workflow task for a new event is terminal after completion; historical events without workflow markers retain the legacy review behavior. Uploaded documents remain outside the Knowledge Evidence Library until an administrator completes the publication gate. Published documents become searchable in that library, but are not automatically added to case-review matching or AI evidence tools. The flow view displays recorded application stages, not a complete native IRIS message trace.
 
 ## System architecture
 
@@ -183,7 +190,8 @@ Results appear in the existing case list. Files are not automatically deleted; o
 2. Open **Audit Tasks** and select the new case. Review its findings, application-stage flow and evidence. A retrieved fixture is labelled `synthetic-demo`; it has no official policy URL or effective date.
 3. In **Workflow tasks**, claim the finding task, select a decision and enter a reason to complete it. A case with findings can be closed only after its workflow tasks are complete; cases without findings may be reviewed directly. The system does not change orders or automatically reject a claim.
 4. Open **Event Monitor** or **IRIS Production** to inspect the corresponding application status. The embedded Production page signs in automatically with the demo administrator.
-5. Optionally open **File Vector Library**, upload a small synthetic UTF-8 `.txt` file and wait for the job to show **Imported**. The uploaded text and embeddings go to the separate upload-vector table. Use **Search uploaded documents** to find matching chunks; results require human verification.
+5. Optionally open **File Vector Library**, upload a small UTF-8 `.txt` file and wait for the job to show **Imported**. The uploaded text and embeddings go to the separate upload-vector table. Use **Search uploaded documents** to find matching chunks; results require human verification.
+6. To make an upload searchable as governed evidence, select **Review and publish**, verify the official source, region, dates and exceptions, clear **needs review**, confirm the review statement, then publish. Ready items can be batch-published. **Withdraw publication** removes the Knowledge Evidence Library copy but preserves the upload and its vectors.
 
 This walkthrough exercises FHIR, evidence retrieval and manual review without a model key. It is not a replay of a successful AI investigation; without model configuration a live investigation cannot succeed.
 
@@ -205,7 +213,7 @@ After core initialization, the upload worker starts in the IRIS container. It in
 docker compose logs --tail=50 iris
 ```
 
-Look for `UPLOAD_WORKER_STARTING`; the upload page also shows a worker heartbeat. If installation or download fails, logs contain `UPLOAD_SETUP_DEPENDENCIES_FAILED` or `UPLOAD_SETUP_MODEL_FAILED`, and setup retries every 30 seconds. The core workbench remains usable. The worker supports UTF-8 TXT, Markdown and DOCX up to 2 MB. Search uses Embedded Python in a single Production operation, matching only uploads with the same model hash. Uploaded content is not automatically a policy authority. Do not run the legacy host worker simultaneously for the same instance.
+Look for `UPLOAD_WORKER_STARTING`; the upload page also shows a worker heartbeat. If installation or download fails, logs contain `UPLOAD_SETUP_DEPENDENCIES_FAILED` or `UPLOAD_SETUP_MODEL_FAILED`, and setup retries every 30 seconds. The core workbench remains usable. The worker supports UTF-8 TXT, Markdown and DOCX up to 2 MB. Search uses Embedded Python in a single Production operation, matching only uploads with the same model hash. Uploaded content is not automatically a policy authority: publication requires administrator review and confirmation, and `needsReview=true` blocks it. Published copies are searchable in the Knowledge Evidence Library but do not automatically enter case matching or AI evidence tools. Do not run the legacy host worker simultaneously for the same instance.
 
 To disable automatic preparation and the worker, set `MED_AUDIT_ENABLE_UPLOAD_WORKER=0` before `docker compose up -d`.
 

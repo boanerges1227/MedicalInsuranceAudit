@@ -43,6 +43,11 @@ XData UrlMap
   <Route Url="/api/uploads/search" Method="POST" Call="UploadSearch"/>
   <Route Url="/api/uploads" Method="GET" Call="UploadList"/>
   <Route Url="/api/uploads" Method="POST" Call="UploadCreate"/>
+  <Route Url="/api/uploads/publish-batch" Method="POST" Call="UploadPublishBatch"/>
+  <Route Url="/api/uploads/:id/publish" Method="GET" Call="UploadPublishPreview"/>
+  <Route Url="/api/uploads/:id/publish-draft" Method="POST" Call="UploadPublishDraft"/>
+  <Route Url="/api/uploads/:id/publish" Method="POST" Call="UploadPublish"/>
+  <Route Url="/api/uploads/:id/withdraw" Method="POST" Call="UploadWithdraw"/>
   <Route Url="/api/uploads/:id/chunk" Method="POST" Call="UploadChunk"/>
   <Route Url="/api/uploads/:id/submit" Method="POST" Call="UploadSubmit"/>
   <Route Url="/api/workflow/events/:eventId/retry" Method="POST" Call="WorkflowDispatchRetry"/>
@@ -173,10 +178,11 @@ ClassMethod Json(data As %DynamicAbstractObject) As %Status
 ClassMethod RespondError(code As %String) As %Status
 {
     set http=400
-    if (code="CASE_NOT_FOUND")!(code="FINDING_NOT_FOUND")!(code="EVENT_NOT_FOUND")!(code="WORKFLOW_NOT_FOUND")!(code="WORKFLOW_EVENT_NOT_FOUND") { set http=404 }
+    if (code="CASE_NOT_FOUND")!(code="FINDING_NOT_FOUND")!(code="EVENT_NOT_FOUND")!(code="WORKFLOW_NOT_FOUND")!(code="WORKFLOW_EVENT_NOT_FOUND")!(code="UPLOAD_NOT_FOUND") { set http=404 }
     if code="FORBIDDEN" { set http=403 }
     if (code="STALE_CASE")!(code="CASE_NOT_READY")!(code="AGENT_ALREADY_RUNNING")!(code="AGENT_DAILY_LIMIT")!(code="VERSION_CONFLICT")!(code="BUNDLE_ID_CONFLICT")!(code="EVENT_MISMATCH")!(code="HISTORY_CONFLICT")!(code="RESOURCE_VERSION_REQUIRED")!(code="RESOURCE_VERSION_CONFLICT")!(code="STALE_RESOURCE_VERSION")!(code="EVENT_NOT_RETRYABLE") { set http=409 }
     if (code="WORKFLOW_REQUIRED")!(code="WORKFLOW_NOT_READY")!(code="WORKFLOW_COMPLETED")!(code="WORKFLOW_ASSIGNED")!(code="WORKFLOW_NOT_ASSIGNED")!(code="WORKFLOW_SYNC_PENDING")!(code="WORKFLOW_SYNC_CONFLICT")!(code="WORKFLOW_NO_PENDING_SYNC")!(code="WORKFLOW_DISPATCH_UNCERTAIN") { set http=409 }
+    if (code="KNOWLEDGE_UPLOAD_NOT_READY")!(code="KNOWLEDGE_NOT_READY")!(code="KNOWLEDGE_ALREADY_PUBLISHED")!(code="KNOWLEDGE_NOT_PUBLISHED")!(code="KNOWLEDGE_VERSION_CONFLICT")!(code="KNOWLEDGE_CHUNK_CONFLICT")!(code="KNOWLEDGE_MODEL_CONFLICT") { set http=409 }
     if (code="WORKFLOW_NOT_OWNER")!(code="WORKFLOW_FORBIDDEN") { set http=403 }
     if code="WORKFLOW_BUSY" { set http=503 }
     if code="CONTENT_TYPE_REQUIRED" { set http=415 }
@@ -269,6 +275,46 @@ ClassMethod UploadChunk(id As %String) As %Status
 ClassMethod UploadSubmit(id As %String) As %Status
 {
     try { set ignored=..Body(),result=##class(HD.UploadVector).Submit(id) } catch ex { return ..RespondError(ex.Name) }
+    return ..Json(result)
+}
+
+/// Return the server-derived publication draft and validation issues; callers must not infer publishability.
+ClassMethod UploadPublishPreview(id As %String) As %Status
+{
+    try { do ##class(HD.AdminSession).Require() set result=##class(HD.KnowledgePublish).Preview(id) }
+    catch ex { return ..RespondError(ex.Name) }
+    return ..Json(result)
+}
+
+/// Save the metadata draft verified by the current administrator; always derive the publisher from the IRIS login.
+ClassMethod UploadPublishDraft(id As %String) As %Status
+{
+    try { do ##class(HD.AdminSession).Require() set result=##class(HD.KnowledgePublish).Save(id,..Body(),$username) }
+    catch ex { return ..RespondError(ex.Name) }
+    return ..Json(result)
+}
+
+/// Publish one confirmed job transactionally without accepting forged administrators or publication states from the request body.
+ClassMethod UploadPublish(id As %String) As %Status
+{
+    try { do ##class(HD.AdminSession).Require() set result=##class(HD.KnowledgePublish).Publish(id,..Body(),$username) }
+    catch ex { return ..RespondError(ex.Name) }
+    return ..Json(result)
+}
+
+/// Publish server-side READY jobs in a batch and report success or failure for each item.
+ClassMethod UploadPublishBatch() As %Status
+{
+    try { do ##class(HD.AdminSession).Require() set result=##class(HD.KnowledgePublish).PublishBatch(..Body(),$username) }
+    catch ex { return ..RespondError(ex.Name) }
+    return ..Json(result)
+}
+
+/// Withdraw knowledge evidence while retaining the original upload vectors and audit information.
+ClassMethod UploadWithdraw(id As %String) As %Status
+{
+    try { do ##class(HD.AdminSession).Require() set result=##class(HD.KnowledgePublish).Withdraw(id,..Body(),$username) }
+    catch ex { return ..RespondError(ex.Name) }
     return ..Json(result)
 }
 

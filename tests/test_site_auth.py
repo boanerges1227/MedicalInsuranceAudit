@@ -6,7 +6,7 @@ import unittest
 import urllib.error
 import urllib.request
 
-BASE = 'http://127.0.0.1:52884/med-audit'
+BASE = os.environ.get('MED_AUDIT_TEST_BASE', 'http://127.0.0.1:52884/med-audit')
 HEADERS = {'X-Med-Audit-Demo': 'local-demo', 'Content-Type': 'application/json'}
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -33,7 +33,7 @@ class SiteAuthTest(unittest.TestCase):
             result = self.request(path)
             self.assertEqual(result.code, 302, path)
             self.assertIn('/med-audit/login', result.headers['Location'])
-        for path in ('/api/health', '/api/agent-summary', '/api/cases', '/api/events', '/api/knowledge', '/api/uploads', '/api/policies', '/api/rules', '/api/mcp-status', '/admin/models', '/admin/mcp-tokens'):
+        for path in ('/api/health', '/api/agent-summary', '/api/cases', '/api/events', '/api/knowledge', '/api/uploads', '/api/uploads/1/publish', '/api/policies', '/api/rules', '/api/mcp-status', '/admin/models', '/admin/mcp-tokens'):
             self.assertEqual(self.request(path).code, 401, path)
         self.assertEqual(self.request('/api/fhir', {}).code, 401)
         self.assertEqual(self.request('/api/uploads', {}).code, 401)
