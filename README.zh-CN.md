@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="web/logo.svg" width="120" height="120" alt="医保智能审核与证据助手 logo">
+</p>
+
 # 医保智能审核与证据助手
 
 [English](README.md) | 中文

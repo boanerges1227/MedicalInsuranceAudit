@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="web/logo.svg" width="120" height="120" alt="Medical Insurance Audit Evidence Assistant logo">
+</p>
+
 # Medical Insurance Audit Evidence Assistant
 
 [中文说明](README.zh-CN.md) | English

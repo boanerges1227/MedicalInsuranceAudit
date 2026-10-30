@@ -11,6 +11,7 @@ XData UrlMap
   <Route Url="/flow.js" Method="GET" Call="FlowScript"/>
   <Route Url="/style.css" Method="GET" Call="Style"/>
   <Route Url="/sample.json" Method="GET" Call="Sample"/>
+  <Route Url="/logo.svg" Method="GET" Call="Logo"/>
   <Route Url="/settings" Method="GET" Call="SettingsPage"/>
   <Route Url="/settings.js" Method="GET" Call="SettingsScript"/>
   <Route Url="/mcp-tokens" Method="GET" Call="MCPTokenPage"/>
@@ -73,7 +74,7 @@ ClassMethod OnPreDispatch(pUrl As %String, pMethod As %String, ByRef pContinue A
     do %response.SetHeader("Cache-Control","no-store")
     set pContinue=1,path=pUrl
     if $extract(path,1)'="/" { set path="/"_path }
-    set public=$listfromstring("/login,/visit-stats,/login.js,/login.css,/admin-session.js,/management.css,/management-i18n.js,/admin/login,/admin/logout,/admin/session,/style.css,/app.js,/flow.js,/settings.js,/mcp-tokens.js,/mcp-tokens.css")
+    set public=$listfromstring("/login,/visit-stats,/login.js,/login.css,/admin-session.js,/management.css,/management-i18n.js,/admin/login,/admin/logout,/admin/session,/style.css,/logo.svg,/app.js,/flow.js,/settings.js,/mcp-tokens.js,/mcp-tokens.css")
     if '$listfind(public,path) {
         set state=##class(HD.AdminSession).Current()
         if 'state.authenticated {
@@ -124,6 +125,8 @@ ClassMethod FlowScript() As %Status { return ..Asset("flow.js","application/java
 ClassMethod Style() As %Status { return ..Asset("style.css","text/css; charset=utf-8") }
 /// Return an editable synthetic FHIR R4 encounter fixture.
 ClassMethod Sample() As %Status { return ..Asset("sample.json","application/fhir+json; charset=utf-8") }
+/// Return the project logo as SVG so the favicon and the sidebar brand share one source.
+ClassMethod Logo() As %Status { return ..Asset("logo.svg","image/svg+xml") }
 /// Serve management assets through a fixed file mapping; authenticate sensitive data through administrator APIs.
 ClassMethod SettingsPage() As %Status { quit ..Asset("settings.html","text/html; charset=utf-8") }
 ClassMethod SettingsScript() As %Status { quit ..Asset("settings.js","application/javascript; charset=utf-8") }
