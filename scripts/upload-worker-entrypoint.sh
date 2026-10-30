@@ -11,7 +11,7 @@ while true; do
   if [[ ! -x "$runtime/bin/python" ]]; then python3 -m venv "$runtime" || { echo 'UPLOAD_SETUP_VENV_FAILED'; sleep 30; continue; }; fi
   if ! "$runtime/bin/python" -c 'import numpy, onnxruntime, tokenizers' >/dev/null 2>&1; then
     echo 'UPLOAD_SETUP_INSTALLING_DEPENDENCIES'
-    "$runtime/bin/python" -m pip install -r /workspace/requirements.txt || { echo 'UPLOAD_SETUP_DEPENDENCIES_FAILED'; sleep 30; continue; }
+    "$runtime/bin/python" -m pip install -r /workspace/requirements/upload-worker.txt || { echo 'UPLOAD_SETUP_DEPENDENCIES_FAILED'; sleep 30; continue; }
   fi
   if ! "$runtime/bin/python" /workspace/scripts/download-upload-model.py; then
     echo 'UPLOAD_SETUP_MODEL_FAILED; retrying in 30 seconds'

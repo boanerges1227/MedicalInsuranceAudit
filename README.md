@@ -31,7 +31,7 @@ The included policy-like texts and vectors are demonstration fixtures: their 512
 - **Native human workflow:** Audit findings enter the IRIS Workflow Engine for reviewers to claim and decide. Synchronization issues and uncertain dispatch outcomes remain available for human investigation.
 - **AI Hub with restricted tools:** An explicitly requested investigation uses an Agent and authorized tools for case and fictional evidence, validates the recommendation and citations, and leaves the decision to a human. A model provider must be configured; a visible interface does not prove a model call occurred.
 - **Vector Search and Embedded Python:** Fictional evidence uses IRIS Vector Search. Uploaded documents have a separate vector store; a Production operation uses Embedded Python and the same model to embed document-search queries.
-- **Reproducible deployment:** Docker Compose configures the application and persistent volume; a ZPM / IPM module installs from local source and initializes the demo resources. The package is not yet published to the public ZPM registry; see the installation notes below.
+- **Reproducible deployment:** Docker Compose configures the application and persistent volume; the package is available from the public ZPM registry and also supports installation from local source. Both paths initialize the demo resources.
 
 ## Technology
 
@@ -145,7 +145,14 @@ To select another host port, set `MED_AUDIT_PORT` before running Compose. `docke
 
 ## Install with ZPM / IPM
 
-In addition to Docker Compose, you can use ZPM (IPM) in the `USER` namespace of a **dedicated** IRIS Community AI Hub EAP build 154 instance. Enable Interoperability in the namespace and use an administrator account. The source path must be readable by the IRIS process:
+In addition to Docker Compose, you can use ZPM (IPM) in the `USER` namespace of a **dedicated** IRIS Community AI Hub EAP build 154 instance. Enable Interoperability in the namespace and use an administrator account. Install the latest public release with:
+
+```objectscript
+USER>zpm "install med-insurance-audit"
+USER>set sc=##class(HD.PackageSetup).Start() if $system.Status.IsError(sc) { do $system.Status.DisplayError(sc) }
+```
+
+The public ZPM registry already contains this project. For the dependency-isolation correction described here, confirm that ZPM resolves version `0.1.1` or later. To install this checkout directly instead, make the source path readable by the IRIS process and run:
 
 ```objectscript
 USER>zpm "load /path/to/med-insurance-audit"
@@ -154,7 +161,7 @@ USER>set sc=##class(HD.PackageSetup).Start() if $system.Status.IsError(sc) { do 
 
 The package creates the vector table before compiling static SQL, then copies the web assets, tools, and synthetic fixtures into the IRIS manager directory. The start method creates or updates `/med-audit` and `/med-audit-admin` and starts `HD.Production`; run it only in a dedicated instance. Sign in with an existing IRIS administrator account and complete any required initial password change. Open `http://host:port/med-audit/`.
 
-ZPM installs the application and fixtures but does not download the embedding model, install the separate upload worker's Python dependencies, or configure an MCP gateway. Use the Compose setup above or provide equivalent prerequisites for document upload. This package has not been published to the public ZPM registry; `zpm "install med-insurance-audit"` will not install it from the public registry.
+ZPM installs the application and fixtures but does not download the embedding model, install the separate upload worker's Python dependencies, or configure an MCP gateway. Use the Compose setup above or provide equivalent prerequisites for document upload. The worker-only dependencies are kept in `requirements/upload-worker.txt`, outside the root path that IPM automatically processes.
 
 ## FHIR file inbound adapter
 
@@ -192,7 +199,7 @@ The default image contains no LLM API key. Configure an available provider from 
 
 ## Document upload and model setup
 
-After core initialization, the upload worker starts in the IRIS container. It installs the dependencies in `requirements.txt`, downloads the pinned [ONNX conversion and tokenizer](https://modelscope.cn/models/lyf219/bge-small-zh-v1.5-onnx), verifies their SHA-256 hashes and caches them in the volume. `healthy` applies to core IRIS and can appear before the worker is ready.
+After core initialization, the upload worker starts in the IRIS container. It installs the dependencies in `requirements/upload-worker.txt`, downloads the pinned [ONNX conversion and tokenizer](https://modelscope.cn/models/lyf219/bge-small-zh-v1.5-onnx), verifies their SHA-256 hashes and caches them in the volume. `healthy` applies to core IRIS and can appear before the worker is ready.
 
 ```sh
 docker compose logs --tail=50 iris
@@ -243,7 +250,8 @@ On ARM64, a fresh volume, FHIR and fixture retrieval, an isolated MCP flow, a sy
 ├── module.xml                    # ZPM / IPM package manifest
 ├── preload/                      # Vector table initialization before package compilation
 ├── compose.yaml                  # IRIS, persistent volume and optional MCP gateway
-├── requirements.txt       # Container upload worker's Python dependencies
+├── requirements/
+│   └── upload-worker.txt          # Container upload worker's Python dependencies
 ├── README.md / README.zh-CN.md   # English and Chinese documentation
 ├── LICENSE                       # MIT license
 ├── samples/                      # Fictional evidence, query, rule and FHIR fixtures

@@ -31,7 +31,7 @@
 - **原生人工工作流：** 审核线索进入 IRIS Workflow Engine，由审核人员领取并记录决定；同步异常与派发结果不确定时保留人工核查入口。
 - **AI Hub 与受限工具：** 按需发起调查，由 Agent 调用授权工具获取病例与演示依据，校验建议及引用后供人工复核。真实模型调用需要配置服务，不能仅凭界面判断已调用模型。
 - **向量检索与 Embedded Python：** 虚构依据使用 IRIS Vector Search；上传文档单独生成并存储向量，检索时由 Production 操作中的 Embedded Python 使用同一模型生成查询向量。
-- **可复现部署：** Docker Compose 配置应用及持久卷；ZPM / IPM 模块支持从本地源码安装并初始化演示资源。ZPM 包尚未发布到公共注册表，详见下方安装说明。
+- **可复现部署：** Docker Compose 配置应用及持久卷；项目已进入公共 ZPM 注册表，也支持从本地源码安装，两种方式都可初始化演示资源。
 
 ## 技术组成
 
@@ -145,7 +145,14 @@ Docker Compose 默认设置 `MED_AUDIT_DEFAULT_LOGIN_NO_CHANGE=1`：每个数据
 
 ## ZPM / IPM 安装
 
-除 Docker Compose 外，也可在**专用** IRIS Community AI Hub EAP build 154 的 `USER` 命名空间使用已安装的 ZPM（IPM）。目标命名空间须启用 Interoperability；需有系统管理权限。以下命令中的目录应是目标 IRIS 进程可读取的项目目录：
+除 Docker Compose 外，也可在**专用** IRIS Community AI Hub EAP build 154 的 `USER` 命名空间使用已安装的 ZPM（IPM）。目标命名空间须启用 Interoperability，并使用系统管理员账号。安装公共注册表中的最新版本：
+
+```objectscript
+USER>zpm "install med-insurance-audit"
+USER>set sc=##class(HD.PackageSetup).Start() if $system.Status.IsError(sc) { do $system.Status.DisplayError(sc) }
+```
+
+公共 ZPM 注册表已经收录本项目。要获得本文所述依赖隔离修复，请确认 ZPM 解析到 `0.1.1` 或更高版本。如需直接安装当前源码，请先确保 IRIS 进程可以读取项目目录，然后执行：
 
 ```objectscript
 USER>zpm "load /path/to/med-insurance-audit"
@@ -154,7 +161,7 @@ USER>set sc=##class(HD.PackageSetup).Start() if $system.Status.IsError(sc) { do 
 
 包预加载器在编译前检查并创建向量表；网页、工具与合成样本复制到 IRIS 管理目录。启动方法会创建或更新 `/med-audit`、`/med-audit-admin` 并启动 `HD.Production`，因此只应在专用实例执行。使用实例现有 IRIS 管理员账号登录；若要求首次修改密码，请先按 IRIS 提示完成。地址为 `http://主机:端口/med-audit/`。
 
-ZPM 只安装应用及样例，不会下载嵌入模型、安装独立上传工作进程的 Python 依赖或配置 MCP 网关。需要完整文档上传与模型准备时，使用上面的 Compose 方案，或自行完成等效环境配置。该包目前尚未发布到公开 ZPM 注册表，不能使用 `zpm "install med-insurance-audit"` 从公共源安装。
+ZPM 只安装应用及样例，不会下载嵌入模型、安装独立上传工作进程的 Python 依赖或配置 MCP 网关。需要完整文档上传与模型准备时，使用上面的 Compose 方案，或自行完成等效环境配置。工作进程专用依赖位于 `requirements/upload-worker.txt`，避免被 IPM 按根目录依赖文件自动处理。
 
 ## FHIR 文件入站 Adapter
 
@@ -192,7 +199,7 @@ docker compose exec -T iris sh -c 'cp /workspace/samples/encounter-bundle.json /
 
 ## 文件上传与模型准备
 
-核心初始化后，上传工作进程在 IRIS 容器内启动：安装 `requirements.txt` 中的依赖，下载固定版本的 [ONNX 转换模型及分词器](https://modelscope.cn/models/lyf219/bge-small-zh-v1.5-onnx)，校验 SHA-256 并缓存到数据卷。`healthy` 表示核心 IRIS 已就绪，不代表工作进程已经准备完毕。
+核心初始化后，上传工作进程在 IRIS 容器内启动：安装 `requirements/upload-worker.txt` 中的依赖，下载固定版本的 [ONNX 转换模型及分词器](https://modelscope.cn/models/lyf219/bge-small-zh-v1.5-onnx)，校验 SHA-256 并缓存到数据卷。`healthy` 表示核心 IRIS 已就绪，不代表工作进程已经准备完毕。
 
 ```sh
 docker compose logs --tail=50 iris
@@ -243,7 +250,8 @@ ARM64 环境已验证新卷启动、FHIR 与虚构样例检索、隔离 MCP 流�
 ├── module.xml                    # ZPM / IPM 包清单
 ├── preload/                      # 包安装前的向量表初始化
 ├── compose.yaml                  # IRIS、持久数据卷和可选 MCP 网关的配置
-├── requirements.txt       # 容器内上传向量工作进程的 Python 依赖
+├── requirements/
+│   └── upload-worker.txt          # 容器内上传向量工作进程的 Python 依赖
 ├── README.md / README.zh-CN.md   # 英文和中文说明
 ├── LICENSE                       # 项目许可证（MIT）
 ├── samples/                      # 虚构依据、查询、规则及 FHIR 样例
