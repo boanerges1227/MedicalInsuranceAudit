@@ -2,8 +2,8 @@ Class HD.AgentRequest Extends %RegisteredObject
 {
 /// Count daily attempts by UTC date; enqueueing consumes an attempt without automatic refunds for failures or timeouts.
 ClassMethod Day() As %Integer { quit +$piece($ztimestamp,",",1) }
-/// Return the shared maximum number of investigation attempts per UTC day.
-ClassMethod Limit() As %Integer { quit 100 }
+/// Return the global shared limit for AI investigation attempts per UTC day.
+ClassMethod Limit() As %Integer { quit 50 }
 
 /// Register investigations serially, validate the current case and event, and reject concurrent or excessive requests.
 ClassMethod Reserve(encounterId As %String, data As %DynamicObject) As %DynamicObject

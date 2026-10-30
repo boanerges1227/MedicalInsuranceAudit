@@ -374,7 +374,7 @@ function openExistingAgentFlow() {
 async function startAgentInvestigation() {
   if(agentRequestBusy||!selectedCase||!isCurrentDetail(selectedCase.encounterId))return;
   const c={id:selectedCase.encounterId,eventId:selectedCase.eventId,version:selectedCase.version};
-  const confirmText=interfaceLanguage==="en"?"Run AI investigation for this synthetic case? It may incur model charges. Daily limit: 100 attempts (UTC); this is not a monetary budget.":"为此合成案例发起 AI 调查？可能产生模型费用。每日上限 100 次（UTC），不等于金额预算上限。";
+  const confirmText=interfaceLanguage==="en"?"Run AI investigation for this synthetic case? It may incur model charges. Daily limit: 50 attempts (UTC); this is not a monetary budget.":"为此合成案例发起 AI 调查？可能产生模型费用。每日上限 50 次（UTC），不等于金额预算上限。";
   if(!window.confirm(confirmText))return;
   const flowSeq=openAgentFlowPending();
   agentRequestBusy=true;$("agentInvestigate").disabled=true;$("agentFlowOpen").hidden=true;$("agentActionStatus").textContent="正在提交 AI 调查…";

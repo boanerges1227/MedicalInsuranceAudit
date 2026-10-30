@@ -195,7 +195,7 @@ The default image contains no LLM API key. Configure an available provider from 
 2. Enter your own key in the UI. Enter the planning rates required for a cloud profile, save it, and select **Use for investigations**. The key is stored in IRIS Wallet; saving validates configuration format but does not verify the key or call the model.
 3. Open a synthetic case and explicitly select **Start AI investigation**. Inspect the recorded investigation stages, tool evidence and validated result. A missing configuration, provider failure, invalid output or stale case is reported as a failure rather than a successful investigation.
 
-**Costs:** online calls can incur provider charges. The application allows at most 100 investigation attempts per UTC day; this is **not** a monetary budget, and no cumulative spending cap is enforced. Do not include keys in the repository. Currently the project configures keys through AI Settings/IRIS Wallet; an environment-variable key setup is **not implemented**. A fresh-install live AI call has not yet been verified for this distribution.
+**Costs:** online calls can incur provider charges. The application allows at most 50 investigation attempts per UTC day; this is **not** a monetary budget, and no cumulative spending cap is enforced. Do not include keys in the repository. Currently the project configures keys through AI Settings/IRIS Wallet; an environment-variable key setup is **not implemented**. A fresh-install live AI call has not yet been verified for this distribution.
 
 ## Document upload and model setup
 
