@@ -152,7 +152,7 @@ USER>zpm "install med-insurance-audit"
 USER>set sc=##class(HD.PackageSetup).Start() if $system.Status.IsError(sc) { do $system.Status.DisplayError(sc) }
 ```
 
-公共 ZPM 注册表已经收录本项目。要获得本文所述依赖隔离修复，请确认 ZPM 解析到 `0.1.1` 或更高版本。如需直接安装当前源码，请先确保 IRIS 进程可以读取项目目录，然后执行：
+公共 ZPM 注册表已经收录本项目。要获得本文所述依赖隔离修复，请确认 ZPM 解析到 `1.0.1` 或更高版本。如需直接安装当前源码，请先确保 IRIS 进程可以读取项目目录，然后执行：
 
 ```objectscript
 USER>zpm "load /path/to/med-insurance-audit"

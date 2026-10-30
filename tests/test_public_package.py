@@ -59,10 +59,10 @@ class PublicPackageTest(unittest.TestCase):
         self.assertIn("-r /workspace/requirements/upload-worker.txt", worker)
         self.assertNotIn("/workspace/requirements.txt", worker)
 
-    def test_public_package_version_is_0_1_1(self):
+    def test_public_package_version_is_1_0_1(self):
         """修复后的公共包必须使用可重新发布的新版本号。"""
         module = ET.parse(ROOT / "module.xml")
-        self.assertEqual(module.findtext(".//Version"), "0.1.1")
+        self.assertEqual(module.findtext(".//Version"), "1.0.1")
 
     def test_readmes_describe_public_registry_installation(self):
         """中英文说明都必须给出有效的公共注册表安装命令。"""

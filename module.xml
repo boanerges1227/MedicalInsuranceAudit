@@ -3,7 +3,7 @@
   <Document name="med-insurance-audit.ZPM">
     <Module>
       <Name>med-insurance-audit</Name>
-      <Version>0.1.1</Version>
+      <Version>1.0.1</Version>
       <Description>FHIR medical audit evidence assistant for InterSystems IRIS</Description>
       <Keywords>fhir,interoperability,agent,mcp,vector</Keywords>
       <Author><Person>John Pan</Person><CopyrightDate>2026</CopyrightDate><License>MIT</License></Author>

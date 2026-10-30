@@ -152,7 +152,7 @@ USER>zpm "install med-insurance-audit"
 USER>set sc=##class(HD.PackageSetup).Start() if $system.Status.IsError(sc) { do $system.Status.DisplayError(sc) }
 ```
 
-The public ZPM registry already contains this project. For the dependency-isolation correction described here, confirm that ZPM resolves version `0.1.1` or later. To install this checkout directly instead, make the source path readable by the IRIS process and run:
+The public ZPM registry already contains this project. For the dependency-isolation correction described here, confirm that ZPM resolves version `1.0.1` or later. To install this checkout directly instead, make the source path readable by the IRIS process and run:
 
 ```objectscript
 USER>zpm "load /path/to/med-insurance-audit"
