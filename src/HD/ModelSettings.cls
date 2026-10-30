@@ -37,6 +37,21 @@ ClassMethod RequireAdmin()
     if '$system.Security.Check("%Admin_Wallet","USE") { throw ##class(%Exception.General).%New("FORBIDDEN") }
 }
 
+/// 干净安装首次保存模型前，创建 Wallet 与 ConfigStore 引用的项目安全资源。
+ClassMethod EnsureInfrastructure()
+{
+    new $namespace
+    set $namespace="%SYS"
+    set sc=##class(%ConfigStore.DescriptorManager).RebuildRegistry()
+    if $system.Status.IsError(sc) { throw ##class(%Exception.General).%New("MODEL_CONFIG_SAVE_FAILED") }
+    for resource="HDModelUse","HDModelEdit","HDConfigRead","HDConfigEdit" {
+        if '##class(Security.Resources).Exists(resource) {
+            set sc=##class(Security.Resources).Create(resource,"Medical audit model","",0)
+            if $system.Status.IsError(sc) { throw ##class(%Exception.General).%New("MODEL_CONFIG_SAVE_FAILED") }
+        }
+    }
+}
+
 /// Enforce native IRIS permissions, version checks, and Wallet requirements for model configuration.
 ClassMethod Row(id As %String) As %DynamicObject
 {
@@ -100,6 +115,7 @@ ClassMethod ValidateRates(rates As %DynamicObject) As %DynamicObject
 ClassMethod Save(data As %DynamicObject) As %DynamicObject
 {
     do ..RequireAdmin()
+    do ..EnsureInfrastructure()
     set p=..Preset(data.%Get("preset","")),id=data.%Get("id","")
     if id'="" { set fqn=..FQN(id) }
     set label=..Text(data.%Get("label",""),80),model=..Text(data.%Get("model",""),200),url=..Text(data.%Get("baseURL",""),500),key=..Text(data.%Get("apiKey",""),2048,1)
