@@ -15,6 +15,7 @@
       <Invoke Class="HD.PackagePreflight" Method="InstallSchema" Phase="Compile" When="Before" CheckStatus="true"/>
       <FileCopy Name="web/" Target="${mgrdir}med-insurance-audit/web/"/>
       <FileCopy Name="samples/" Target="${mgrdir}med-insurance-audit/samples/"/>
+      <FileCopy Name="java/" Target="${mgrdir}med-insurance-audit/java/"/>
       <FileCopy Name="tools/" Target="${mgrdir}med-insurance-audit/tools/"/>
       <Invoke Class="HD.PackageSetup" Method="Configure" Phase="Activate" When="After" CheckStatus="true"><Arg>${mgrdir}med-insurance-audit/</Arg></Invoke>
       <AfterInstallMessage>To initialize the synthetic demo in a dedicated USER namespace, run: do ##class(HD.PackageSetup).Start()</AfterInstallMessage>

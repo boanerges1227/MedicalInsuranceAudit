@@ -30,7 +30,7 @@ The included policy-like texts and vectors are demonstration fixtures: their 512
 - **Custom interoperability adapter:** `HD.FHIRFileAdapter` extends IRIS `Ens.InboundAdapter` to send completed FHIR files into the Production. It deduplicates content, retains original files and rate-limits failed retries. The workbench shows file status and the associated event.
 - **Native human workflow:** Audit findings enter the IRIS Workflow Engine for reviewers to claim and decide. Synchronization issues and uncertain dispatch outcomes remain available for human investigation.
 - **AI Hub with restricted tools:** An explicitly requested investigation uses an Agent and authorized tools for case and fictional evidence, validates the recommendation and citations, and leaves the decision to a human. A model provider must be configured; a visible interface does not prove a model call occurred.
-- **Vector Search and Python PEX:** Fictional evidence uses IRIS Vector Search. Uploaded documents have a separate vector store; a Python PEX Business Operation uses the same pinned ONNX model to embed document-search queries through the native external language server.
+- **Vector Search and Java PEX:** Fictional evidence uses IRIS Vector Search. Uploaded documents have a separate vector store; a Java PEX Business Operation uses the same pinned ONNX model to embed document-search queries through the native Java external language server.
 - **Human-governed knowledge publication:** Vectorization never makes an upload authoritative. Publication requires a valid official source URL, source ID, region, publication date, effective date or status, cleared `needsReview` flag and an explicit reviewer confirmation. Publishing copies the reviewed chunks transactionally; withdrawal removes only that published copy.
 - **Reproducible deployment:** Docker Compose configures the application and persistent volume; the package is available from the public ZPM registry and also supports installation from local source. Both paths initialize the demo resources.
 
@@ -42,7 +42,7 @@ The included policy-like texts and vectors are demonstration fixtures: their 512
 | Interoperability and workflow | `HD.Production` connects FHIR intake, routing, audit, native Workflow Engine tasks and AI-review components. |
 | AI | IRIS AI Hub `%AI.Agent`, authorized case and evidence tools, output validation, Config Store and IRIS Wallet. Live model calls require a separately configured provider. |
 | Storage and retrieval | IRIS globals and SQL; IRIS Vector Search with `VECTOR_COSINE` for fictional fixtures; a separate `HD.UploadedVectors` table for uploaded documents. |
-| Embeddings | A separate Python worker encodes uploaded documents. For document search, a single Python PEX Production operation encodes queries using the same ONNX model through the native `%Python Server`. |
+| Embeddings | A separate Python worker encodes uploaded documents. For document search, a single Java PEX Production operation encodes queries using the same hash-pinned ONNX model and Java WordPiece tokenizer through the native `%Java Server`. |
 | Interface and integration | Desktop HTML/CSS/JavaScript workbench, REST endpoints and an optional local MCP gateway. |
 
 ## Business workflow
@@ -64,7 +64,7 @@ flowchart TD
     F -- No --> I
     J[Synthetic document upload] --> K[Local embedding worker]
     K --> L[Separate IRIS upload-vector table]
-    Q[Document search query] --> P[Python PEX query embedding]
+    Q[Document search query] --> P[Java PEX query embedding]
     P --> L
     L --> M[Administrator reviews provenance, dates and exceptions]
     M --> N{Ready and explicitly confirmed?}
@@ -89,7 +89,7 @@ flowchart LR
         PROD[Interoperability Production]
         AGENT[AI Hub agent and tools]
         WORKER[Python document worker]
-        EMBED[Python PEX search operation]
+        EMBED[Java PEX search operation]
         FLOW[Native Workflow Engine]
         STORE[(IRIS globals, SQL and vectors)]
         CONFIG[Config Store and IRIS Wallet]
@@ -213,7 +213,7 @@ After core initialization, the upload worker starts in the IRIS container. It in
 docker compose logs --tail=50 iris
 ```
 
-Look for `UPLOAD_WORKER_STARTING`; the upload page also shows a worker heartbeat. If installation or download fails, logs contain `UPLOAD_SETUP_DEPENDENCIES_FAILED` or `UPLOAD_SETUP_MODEL_FAILED`, and setup retries every 30 seconds. The core workbench remains usable. The worker supports UTF-8 TXT, Markdown and DOCX up to 2 MB. Search uses Python PEX in a single Production operation, matching only uploads with the same model hash. Uploaded content is not automatically a policy authority: publication requires administrator review and confirmation, and `needsReview=true` blocks it. Published copies are searchable in the Knowledge Evidence Library but do not automatically enter case matching or AI evidence tools. Do not run the legacy host worker simultaneously for the same instance.
+Look for `UPLOAD_WORKER_STARTING`; the upload page also shows a worker heartbeat. If installation or download fails, logs contain `UPLOAD_SETUP_DEPENDENCIES_FAILED` or `UPLOAD_SETUP_MODEL_FAILED`, and setup retries every 30 seconds. The core workbench remains usable. The worker supports UTF-8 TXT, Markdown and DOCX up to 2 MB. Search uses Java PEX in a single Production operation, matching only uploads with the same model hash. Uploaded content is not automatically a policy authority: publication requires administrator review and confirmation, and `needsReview=true` blocks it. Published copies are searchable in the Knowledge Evidence Library but do not automatically enter case matching or AI evidence tools. Do not run the legacy host worker simultaneously for the same instance.
 
 To disable automatic preparation and the worker, set `MED_AUDIT_ENABLE_UPLOAD_WORKER=0` before `docker compose up -d`.
 
@@ -251,19 +251,19 @@ If IRIS is not healthy, check `docker compose logs iris` and confirm the build 1
 
 On ARM64, a fresh volume, FHIR and fixture retrieval, an isolated MCP flow, a synthetic document upload, vector insertion and restart/cache reuse were tested. This does not establish x64 support, production security or reproducible live AI acceptance in a new installation.
 
-## Python PEX query operation
+## Java PEX query operation
 
-`HD.Production` routes the existing `EmbeddedVector` item to the generated `HD.PEX.EmbeddingOperation` proxy, which extends `EnsLib.PEX.BusinessOperation`. Its Python implementation, `tools/medaudit_pex.py`, extends the official `iris.pex.BusinessOperation` class. `HD.PEX.Setup.Install()` registers the module with the built-in `%Python Server` before Production starts; both source Compose startup and IPM `HD.PackageSetup.Start()` use this path. No separately exposed gateway port is needed. When upgrading Python module code in an existing instance, stop its Production and restart this dedicated application container (or its external language server after checking all users) before restarting Production: re-registering the proxy alone does not clear Python module caches. Installation does not automatically bounce the shared default server.
+`HD.Production` routes the existing `EmbeddedVector` item to the generated `HD.PEX.EmbeddingOperation` proxy, which extends `EnsLib.PEX.BusinessOperation`. Its Java implementation, `java/src/medaudit/pex/EmbeddingOperation.java`, extends the official `com.intersystems.enslib.pex.BusinessOperation` class. Java performs WordPiece tokenization with Unicode-property tables generated from the pinned tokenizer runtime, ONNX CPU inference, CLS pooling, finite-value checks and L2 normalization; it does not delegate inference to Python. `HD.PEX.Setup.Install()` compiles the bundled Java sources and registers the operation with the built-in `%Java Server` before Production starts; both source Compose startup and IPM `HD.PackageSetup.Start()` use this path. The AI Hub image supplies JDK 11, PEX and JDBC libraries. The first build downloads ONNX Runtime Java 1.20.0 over HTTPS and verifies its pinned SHA-256; see [dependency notices](java/NOTICE.md). Offline installations may preseed the exact JAR under the directory returned by `HD.PEX.Setup.RuntimeRoot()`. Runtime classes and the dependency live under the durable ManagerDirectory, so startup does not require a source checkout after IPM installation. A missing or corrupt Java dependency fails startup explicitly. This initial Java dependency download is required even when the upload worker is disabled; provide network access to Maven Central or preseed the verified JAR before startup. No separately exposed gateway port is needed. Installation does not automatically bounce the shared default Java server. For later Java code upgrades, stop the affected Production and restart its dedicated application container (or the external server after checking all users) to clear cached Java classes, then register/start again.
 
-Only a random, expiring request ID is stored in the Production message. The PEX operation resolves its query through a native callback, uses the existing pinned model helper, and returns the original status, dimensions, model hash and vector CSV contract. Temporary query input is removed after the call; missing model assets or failed gateway dispatch return an explicit failure, without silently executing the legacy Embedded Python path. IRIS still performs storage and `VECTOR_COSINE` search. The previous `EncodePython()` method remains available for explicit compatibility/parity checks.
+Only a random, expiring request ID is stored in the Production message. The PEX operation resolves its query through a native callback, executes the same hash-pinned ONNX model and tokenizer directly in Java, and returns the original status, dimensions, model hash and vector CSV contract. Temporary query input is removed after the call; missing model assets or failed gateway dispatch return an explicit failure, without silently executing the legacy Embedded Python path. IRIS still performs storage and `VECTOR_COSINE` search. The previous `EncodePython()` method remains available for explicit compatibility/parity checks.
 
-Run unit checks with `python3 -m unittest discover -s tests -p test_pex_embedding.py -v`. Real gateway/model integration tests require a disposable container whose name starts with `med-pex-`, the application/Production initialized, and the pinned upload model/dependencies ready:
+Run Java core checks inside the selected test container with `MED_AUDIT_JAVA_CLASSPATH` set to the compiled `medaudit-pex.jar`, the verified ONNX Runtime JAR and the image’s `/usr/irissys/dev/java/lib/1.8/*`: `python3 -m unittest discover -s /workspace/tests -p test_java_pex.py -v`. The pinned tokenizer must be provisioned in `/durable/iris/private/upload-model`; the classpath setting explicitly enables these tests. Real gateway/model integration tests require a disposable container whose name starts with `med-pex-`, the application/Production initialized, and the pinned upload model/dependencies ready:
 
 ```sh
-MED_AUDIT_TEST_PEX=1 MED_AUDIT_PEX_CONTAINER=med-pex-test python3 -m unittest discover -s tests -p 'test_pex_embedding*.py' -v
+MED_AUDIT_TEST_PEX=1 MED_AUDIT_PEX_CONTAINER=med-pex-java-test python3 -m unittest discover -s tests -p 'test_pex_embedding*.py' -v
 ```
 
-The integration tests exercise actual PEX dispatch, equality with the existing model, private input cleanup, expired IDs, and safe failure when the local model is unavailable. The missing-model test temporarily renames a model file only in the selected disposable test container and restores it in `finally`.
+The integration tests exercise actual PEX dispatch, tokenizer compatibility and vector agreement within 1e-6 with the existing Python model, private input cleanup, expired IDs, and safe failure when the local model is unavailable. The missing-model test temporarily renames a model file only in the selected disposable test container and restores it in `finally`.
 
 ## Project structure
 
@@ -293,4 +293,4 @@ The integration tests exercise actual PEX dispatch, equality with the existing m
 
 - Source and original fixtures: [MIT License](LICENSE). IRIS EAP images, model weights, actual policies, private credentials and runtime data are not included in the repository.
 - Real policy provenance, dates and permissions require separate review. The project is a synthetic demonstration, not a complete FHIR server or a production medical compliance system.
-- Workflow task completion uses persisted intent and retry when synchronization is interrupted; dispatch outcomes that are unknown require manual inspection of the native messages before recovery. A task completed externally without matching application review history is marked `REVIEW_MISMATCH` and blocks case closure; it requires manual investigation. Python PEX search has not yet undergone long-duration load testing.
+- Workflow task completion uses persisted intent and retry when synchronization is interrupted; dispatch outcomes that are unknown require manual inspection of the native messages before recovery. A task completed externally without matching application review history is marked `REVIEW_MISMATCH` and blocks case closure; it requires manual investigation. Java PEX search has not yet undergone long-duration load testing.

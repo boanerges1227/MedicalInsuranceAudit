@@ -1,4 +1,4 @@
-"""Exercise real Python PEX dispatch in an explicitly selected disposable IRIS container."""
+"""Exercise real Java PEX dispatch in an explicitly selected disposable IRIS container."""
 import json
 import math
 import os
@@ -29,7 +29,11 @@ class PEXEmbeddingIntegration(unittest.TestCase):
         """PEX must execute the same pinned model and return the original result contract."""
         out = self.iris("""set p={}.%FromJSON(##class(HD.EmbeddedVector).Encode("Synthetic PEX parity query",1)),e={}.%FromJSON(##class(HD.EmbeddedVector).EncodePython("Synthetic PEX parity query",1)) write "RESULT=",{"pex":(p),"legacy":(e)}.%ToJSON(),!""")
         data = json.loads(next(row[7:] for row in out.splitlines() if row.startswith("RESULT=")))
-        self.assertEqual(data["pex"], data["legacy"])
+        self.assertEqual(data["pex"]["status"], data["legacy"]["status"])
+        self.assertEqual(data["pex"]["model_hash"], data["legacy"]["model_hash"])
+        pvalues=list(map(float,data["pex"]["vector_csv"].split(",")))
+        evalues=list(map(float,data["legacy"]["vector_csv"].split(",")))
+        self.assertLess(max(abs(a-b) for a,b in zip(pvalues,evalues)), 1e-6)
         result = data["pex"]
         self.assertEqual(result["status"], "OK")
         self.assertEqual(result["dimensions"], 512)
@@ -38,6 +42,20 @@ class PEXEmbeddingIntegration(unittest.TestCase):
         self.assertEqual(len(values), 512)
         self.assertTrue(all(math.isfinite(value) for value in values))
         self.assertAlmostEqual(sum(value * value for value in values), 1, places=5)
+
+    def test_unicode_blank_and_category_regressions_match_original(self):
+        """Exercise the fixed Java classes through native Production, not only a standalone JVM."""
+        out = self.iris("""set p={}.%FromJSON(##class(HD.EmbeddedVector).Encode($char(133),0)),e={}.%FromJSON(##class(HD.EmbeddedVector).EncodePython($char(133),0)) write "BLANK=",{"pex":(p),"legacy":(e)}.%ToJSON(),! set text="a"_$char(2274)_"b",p={}.%FromJSON(##class(HD.EmbeddedVector).Encode(text,0)),e={}.%FromJSON(##class(HD.EmbeddedVector).EncodePython(text,0)) write "UNICODE=",{"pex":(p),"legacy":(e)}.%ToJSON(),!""")
+        blank = json.loads(next(row[6:] for row in out.splitlines() if row.startswith("BLANK=")))
+        self.assertEqual(blank["pex"], {"status": "FAILED", "code": "INVALID_INPUT"})
+        self.assertEqual(blank["pex"], blank["legacy"])
+        vectors = json.loads(next(row[8:] for row in out.splitlines() if row.startswith("UNICODE=")))
+        self.assertEqual(vectors["pex"]["status"], "OK")
+        self.assertEqual(vectors["legacy"]["status"], "OK")
+        actual = list(map(float, vectors["pex"]["vector_csv"].split(",")))
+        expected = list(map(float, vectors["legacy"]["vector_csv"].split(",")))
+        self.assertEqual(len(actual), 512)
+        self.assertLess(max(abs(a-b) for a,b in zip(actual, expected)), 1e-6)
 
     def test_token_limit_preserves_legacy_invalid_input(self):
         """A valid character count can still exceed the tokenizer limit; preserve the public error contract."""
@@ -48,7 +66,7 @@ class PEXEmbeddingIntegration(unittest.TestCase):
 
     def test_actual_production_proxy_and_private_query_lifecycle(self):
         """The default Production runs the native PEX proxy and leaves no temporary input after encoding."""
-        out = self.iris("""do ##class(HD.PEX.Setup).Install() set cls=##class(%Dictionary.ClassDefinition).%OpenId("HD.PEX.EmbeddingOperation") if cls.Super'= "EnsLib.PEX.BusinessOperation" { throw ##class(%Exception.General).%New("NOT_PEX") } set result={}.%FromJSON(##class(HD.EmbeddedVector).Encode("Synthetic PEX lifecycle query",0)) if result.status'="OK" { throw ##class(%Exception.General).%New("ENCODE_FAILED") } set id="",remaining=0 for { set id=$order(^CacheTempUserMedAudit($namespace,id)) quit:id=""  if id'="purge" { set remaining=remaining+1 } } write "REMAINING=",remaining,!""")
+        out = self.iris("""do ##class(HD.PEX.Setup).Install() set cls=##class(%Dictionary.ClassDefinition).%OpenId("HD.PEX.EmbeddingOperation") if cls.Super'= "EnsLib.PEX.BusinessOperation" { throw ##class(%Exception.General).%New("NOT_PEX") } set java=0 for i=1:1:cls.Parameters.Count() { set p=cls.Parameters.GetAt(i) if (p.Name="%REMOTECLASSNAME")&&(p.Default="medaudit.pex.EmbeddingOperation") { set java=1 } } if 'java { throw ##class(%Exception.General).%New("NOT_JAVA_PEX") } set result={}.%FromJSON(##class(HD.EmbeddedVector).Encode("Synthetic PEX lifecycle query",0)) if result.status'="OK" { throw ##class(%Exception.General).%New("ENCODE_FAILED") } set id="",remaining=0 for { set id=$order(^CacheTempUserMedAudit($namespace,id)) quit:id=""  if id'="purge" { set remaining=remaining+1 } } write "REMAINING=",remaining,!""")
         self.assertIn("REMAINING=0", out)
 
     def test_invalid_and_expired_requests_fail_without_model_or_query_leaks(self):

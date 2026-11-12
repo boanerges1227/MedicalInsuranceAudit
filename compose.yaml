@@ -25,6 +25,7 @@ services:
       - ./web:/workspace/web:ro
       - ./scripts:/workspace/scripts:ro
       - ./tools:/workspace/tools:ro
+      - ./java:/workspace/java:ro
       - ./requirements/upload-worker.txt:/workspace/requirements/upload-worker.txt:ro
       - ./samples:/workspace/samples:ro
     healthcheck:

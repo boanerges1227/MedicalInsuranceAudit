@@ -30,7 +30,7 @@
 - **自定义互操作 Adapter：** `HD.FHIRFileAdapter` 继承 IRIS `Ens.InboundAdapter`，将已完成投递的 FHIR 文件送入 Production；支持内容去重、保留原文件及失败后限频重试。工作台可查看文件状态与关联事件。
 - **原生人工工作流：** 审核线索进入 IRIS Workflow Engine，由审核人员领取并记录决定；同步异常与派发结果不确定时保留人工核查入口。
 - **AI Hub 与受限工具：** 按需发起调查，由 Agent 调用授权工具获取病例与演示依据，校验建议及引用后供人工复核。真实模型调用需要配置服务，不能仅凭界面判断已调用模型。
-- **向量检索与 Python PEX：** 虚构依据使用 IRIS Vector Search；上传文档单独生成并存储向量，检索时由 Python PEX Business Operation 通过原生外部语言服务器，使用同一固定 ONNX 模型生成查询向量。
+- **向量检索与 Java PEX：** 虚构依据使用 IRIS Vector Search；上传文档单独生成并存储向量，检索时由 Java PEX Business Operation 通过原生外部语言服务器，直接使用同一固定 ONNX 模型和 Java WordPiece 分词器生成查询向量。
 - **人工治理的知识发布：** 向量化不会自动把上传内容认定为政策依据。发布前必须核实官方地址、来源编号、地区、发布日期、生效日期或状态，清除 `needsReview` 标记并明确确认；发布过程以事务复制已核实分片，撤回仅删除知识库副本。
 - **可复现部署：** Docker Compose 配置应用及持久卷；项目已进入公共 ZPM 注册表，也支持从本地源码安装，两种方式都可初始化演示资源。
 
@@ -42,7 +42,7 @@
 | 互操作与工作流 | `HD.Production` 连接 FHIR 接收、路由、审核、原生 Workflow Engine 任务与 AI 调查组件。 |
 | AI | IRIS AI Hub `%AI.Agent`、授权病例与依据工具、输出校验、Config Store 和 IRIS Wallet；实时调用需要另行配置模型服务。 |
 | 存储与检索 | IRIS 全局变量与 SQL；使用 `VECTOR_COSINE` 检索虚构样例；上传文档写入独立的 `HD.UploadedVectors` 表。 |
-| 向量化 | 独立 Python 进程对上传文档编码；文档检索使用单个 Python PEX Production 操作，通过原生 `%Python Server` 以同一 ONNX 模型生成查询向量。 |
+| 向量化 | 独立 Python 进程对上传文档编码；文档检索使用单个 Java PEX Production 操作，通过原生 `%Java Server` 以同一 ONNX 模型生成查询向量。 |
 | 界面与集成 | HTML/CSS/JavaScript 桌面工作台、REST 接口和可选本地 MCP 网关。 |
 
 ## 业务流程
@@ -64,7 +64,7 @@ flowchart TD
     F -- 否 --> I
     J[上传合成文档] --> K[本地向量化进程]
     K --> L[独立 IRIS 上传向量表]
-    Q[输入文档查询] --> P[Python PEX 查询向量]
+    Q[输入文档查询] --> P[Java PEX 查询向量]
     P --> L
     L --> M[管理员核实原文、地区、日期和例外条件]
     M --> N{状态可发布且明确确认}
@@ -89,7 +89,7 @@ flowchart LR
         PROD[互操作 Production]
         AGENT[AI Hub Agent 与工具]
         WORKER[Python 文档向量化进程]
-        EMBED[Python PEX 检索操作]
+        EMBED[Java PEX 检索操作]
         FLOW[原生 Workflow Engine]
         STORE[(IRIS 全局变量、SQL 与向量)]
         CONFIG[Config Store 与 IRIS Wallet]
@@ -213,7 +213,7 @@ docker compose exec -T iris sh -c 'cp /workspace/samples/encounter-bundle.json /
 docker compose logs --tail=50 iris
 ```
 
-日志出现 `UPLOAD_WORKER_STARTING` 后工作进程开始运行，文件向量库页面也会显示心跳。安装或下载失败时日志会显示 `UPLOAD_SETUP_DEPENDENCIES_FAILED` 或 `UPLOAD_SETUP_MODEL_FAILED`，并每 30 秒重试；核心工作台仍可使用。支持 UTF-8 TXT、Markdown 和 DOCX，单文件不超过 2 MB。检索查询通过单个 Python PEX Production 操作运行，只比较同模型指纹的上传向量。上传内容不会自动成为政策依据：发布必须经管理员核实和确认，`needsReview=true` 会阻止发布；已发布副本可在知识依据库检索，但不会自动进入案例依据匹配或 AI 依据工具。不要同时为同一实例启动旧的宿主机工作进程。
+日志出现 `UPLOAD_WORKER_STARTING` 后工作进程开始运行，文件向量库页面也会显示心跳。安装或下载失败时日志会显示 `UPLOAD_SETUP_DEPENDENCIES_FAILED` 或 `UPLOAD_SETUP_MODEL_FAILED`，并每 30 秒重试；核心工作台仍可使用。支持 UTF-8 TXT、Markdown 和 DOCX，单文件不超过 2 MB。检索查询通过单个 Java PEX Production 操作运行，只比较同模型指纹的上传向量。上传内容不会自动成为政策依据：发布必须经管理员核实和确认，`needsReview=true` 会阻止发布；已发布副本可在知识依据库检索，但不会自动进入案例依据匹配或 AI 依据工具。不要同时为同一实例启动旧的宿主机工作进程。
 
 如需关闭自动准备与工作进程，在运行 `docker compose up -d` 前设置 `MED_AUDIT_ENABLE_UPLOAD_WORKER=0`。
 
@@ -251,19 +251,21 @@ MED_AUDIT_TEST_WORKFLOW=1 python3 -m unittest discover -s tests -p test_workflow
 
 ARM64 环境已验证新卷启动、FHIR 与虚构样例检索、隔离 MCP 流程、合成文件上传、向量入库以及重启后缓存复用。这些结果不能证明 x64 兼容、生产安全性或新装环境下的真实 AI 调用可复现。
 
-## Python PEX 查询操作
+## Java PEX 查询操作
 
-`HD.Production` 的既有 `EmbeddedVector` 条目现在指向生成的 `HD.PEX.EmbeddingOperation` 代理，代理继承 `EnsLib.PEX.BusinessOperation`；Python 实现 `tools/medaudit_pex.py` 继承官方 `iris.pex.BusinessOperation`。`HD.PEX.Setup.Install()` 在 Production 启动前，通过内置 `%Python Server` 注册模块；源码 Compose 启动和 IPM 的 `HD.PackageSetup.Start()` 均执行这一流程，无需额外公开网关端口。已有实例升级 Python 模块代码时，应先停止 Production，再重启该专用应用容器（或核实所有使用者后重启其外部语言服务器），然后恢复 Production：只重新注册代理不会清除 Python 模块缓存。安装过程不会自动重启共享的默认服务器。
+`HD.Production` 的既有 `EmbeddedVector` 条目指向生成的 `HD.PEX.EmbeddingOperation` 代理，代理继承 `EnsLib.PEX.BusinessOperation`；Java 实现 `java/src/medaudit/pex/EmbeddingOperation.java` 继承官方 `com.intersystems.enslib.pex.BusinessOperation`。分词（使用从固定分词器运行时生成的 Unicode 属性表）、ONNX CPU 推理、CLS 池化、有限值验证及 L2 归一化均由 Java 执行，不委托 Python 推理。
 
-Production 消息仅持久化随机且有时效的请求 ID。PEX 操作通过原生回调读取临时查询，再调用既有固定模型辅助模块，返回原有的状态、维度、模型哈希和向量 CSV。调用后清理临时输入；模型缺失或网关调用失败明确返回失败，不会静默改用旧 Embedded Python 路径。向量存储与 `VECTOR_COSINE` 检索仍由 IRIS 完成。原 `EncodePython()` 方法保留用于显式兼容性与结果一致性检查。
+`HD.PEX.Setup.Install()` 在 Production 启动前编译随包提供的 Java 源码，通过内置 `%Java Server` 注册操作；源码 Compose 启动和 IPM `HD.PackageSetup.Start()` 均执行这一流程。AI Hub 镜像提供 JDK 11、PEX 和 JDBC 库；首次构建通过 HTTPS 下载 ONNX Runtime Java 1.20.0，并核验固定 SHA-256，详见[依赖声明](java/NOTICE.md)。离线安装可预先将完全相同的 JAR 放入 `HD.PEX.Setup.RuntimeRoot()` 返回的目录。运行类和依赖保存在持久 ManagerDirectory 下，IPM 安装后不依赖源码检出目录。Java 依赖缺失或哈希错误会明确阻止启动。即使关闭上传工作进程，首次启动仍需要下载 Java 依赖；应确保能访问 Maven Central，或在启动前预置哈希一致的 JAR。无需新增公网网关端口，安装过程不会自动重启共享 Java 外部服务器。后续升级 Java 代码时，应先停止相关 Production，再重启专用应用容器（或核实所有使用者后重启外部服务器）清除类缓存，然后注册并恢复 Production。
 
-单元验证：`python3 -m unittest discover -s tests -p test_pex_embedding.py -v`。真实网关/模型集成验证仅针对名称以 `med-pex-` 开头的独立临时容器，要求该容器已初始化应用及 Production，且固定上传模型与依赖已就绪：
+Production 消息仅持久化随机且有时效的请求 ID。PEX 操作通过原生回调读取临时查询，在 Java 中直接执行哈希固定的同一 ONNX 模型和分词器，返回原有的状态、维度、模型哈希和向量 CSV。调用后清理临时输入；模型缺失或网关调用失败明确返回失败，不会静默改用旧 Embedded Python 路径。向量存储与 `VECTOR_COSINE` 检索仍由 IRIS 完成。原 `EncodePython()` 方法保留用于显式兼容性与结果一致性检查。
+
+Java 核心验证在所选测试容器内运行：将 `MED_AUDIT_JAVA_CLASSPATH` 设为编译后的 `medaudit-pex.jar`、已核验的 ONNX Runtime JAR 和镜像内 `/usr/irissys/dev/java/lib/1.8/*` 的完整类路径，再运行 `python3 -m unittest discover -s /workspace/tests -p test_java_pex.py -v`。固定分词器须位于 `/durable/iris/private/upload-model`；类路径环境变量用于显式启用这组测试。真实网关/模型集成验证仅针对名称以 `med-pex-` 开头的独立临时容器，要求该容器已初始化应用及 Production，且固定上传模型与依赖已就绪：
 
 ```sh
-MED_AUDIT_TEST_PEX=1 MED_AUDIT_PEX_CONTAINER=med-pex-test python3 -m unittest discover -s tests -p 'test_pex_embedding*.py' -v
+MED_AUDIT_TEST_PEX=1 MED_AUDIT_PEX_CONTAINER=med-pex-java-test python3 -m unittest discover -s tests -p 'test_pex_embedding*.py' -v
 ```
 
-集成测试覆盖真实 PEX 消息分发、与原模型结果一致、临时输入清理、过期 ID 和模型不可用时的安全失败。模型缺失测试只在所选临时容器内临时改名模型文件，并在 `finally` 中恢复。
+集成测试覆盖真实 PEX 消息分发、分词兼容性、与原 Python 模型向量误差小于 1e-6、临时输入清理、过期 ID 和模型不可用时的安全失败。模型缺失测试只在所选临时容器内临时改名模型文件，并在 `finally` 中恢复。
 
 ## 项目目录说明
 
@@ -293,4 +295,4 @@ MED_AUDIT_TEST_PEX=1 MED_AUDIT_PEX_CONTAINER=med-pex-test python3 -m unittest di
 
 - 源码和原创样例采用 [MIT 许可证](LICENSE)。仓库不包含 IRIS EAP 镜像、模型权重、真实政策、私有凭据和运行数据。
 - 真实政策的来源、生效日期和许可需要单独核查。本项目是合成数据演示，并非完整 FHIR Server 或可直接用于生产的医保合规系统。
-- 任务完成采用持久意图和重试处理同步中断；派发结果未知时须人工核查原生消息，不会盲目重发。若任务在外部完成但缺少一致的应用审核历史，系统标记 `REVIEW_MISMATCH` 并阻止结案，需人工核查。Python PEX 检索尚未进行长时间负载测试。
+- 任务完成采用持久意图和重试处理同步中断；派发结果未知时须人工核查原生消息，不会盲目重发。若任务在外部完成但缺少一致的应用审核历史，系统标记 `REVIEW_MISMATCH` 并阻止结案，需人工核查。Java PEX 检索尚未进行长时间负载测试。
