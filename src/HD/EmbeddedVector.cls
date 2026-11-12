@@ -32,6 +32,16 @@ ClassMethod PurgeExpired()
     lock -^CacheTempUserMedAudit($namespace,"purge")
 }
 
+/// Resolve only a valid, unexpired random request ID; raw query text remains outside persistent Production messages.
+ClassMethod ReadPEXInput(id As %String) As %String
+{
+    set failure={"status":"FAILED","code":"INVALID_INPUT"}
+    if (id="")!($length(id)>64)!(id'?1.AN) { quit failure.%ToJSON() }
+    set created=+$get(^CacheTempUserMedAudit($namespace,id,"created")),now=($piece($horolog,",",1)*86400)+$piece($horolog,",",2)
+    if (created=0)!(now-created>120)!('$data(^CacheTempUserMedAudit($namespace,id,"text"))) { quit failure.%ToJSON() }
+    quit {"status":"OK","text":($get(^CacheTempUserMedAudit($namespace,id,"text"))),"query":(+$get(^CacheTempUserMedAudit($namespace,id,"query")))}.%ToJSON()
+}
+
 /// Generate a 512-dimensional vector for a single text in the IRIS process using the pinned Chinese model.
 ClassMethod EncodePython(text As %String, query As %Boolean = 0) As %String [ Language = python ]
 {

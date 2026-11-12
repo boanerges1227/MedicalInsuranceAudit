@@ -18,6 +18,7 @@ ClassMethod Install()
     if ##class(Security.Applications).Exists(name) { set status=##class(Security.Applications).Modify(name,.p) } else { set status=##class(Security.Applications).Create(name,.p) }
     if $system.Status.IsError(status) { throw ##class(%Exception.StatusException).CreateFromStatus(status) }
     set $namespace="USER"
+    do ##class(HD.PEX.Setup).Install()
     set status=##class(Ens.Director).RecoverProduction()
     if $system.Status.IsError(status) { throw ##class(%Exception.StatusException).CreateFromStatus(status) }
     if '##class(Ens.Director).IsProductionRunning() {
