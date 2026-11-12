@@ -25,6 +25,8 @@ Medical Insurance Audit Evidence Assistant is a desktop demonstration for explor
 
 The included policy-like texts and vectors are demonstration fixtures: their 512-dimensional vectors are hand-constructed, so their similarity values do not establish semantic relevance or policy validity. AI output is a recommendation, and missing configuration or failed validation is reported as a failure.
 
+[Native AI traceability (DPI-I-689): actual SDK HTTP/tool metadata, privacy boundary, reproduction and limits](docs/traceability-689.md).
+
 ## Technical highlights
 
 - **Custom interoperability adapter:** `HD.FHIRFileAdapter` extends IRIS `Ens.InboundAdapter` to send completed FHIR files into the Production. It deduplicates content, retains original files and rate-limits failed retries. The workbench shows file status and the associated event.

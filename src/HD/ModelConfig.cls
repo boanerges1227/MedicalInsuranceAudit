@@ -48,8 +48,11 @@ ClassMethod Provider(Output model As %String, name As %String = "") As %AI.Provi
         set model=config.%Get("model",""),base=config.%Get("base_url",""),key=config.%Get("api_key","")
         if (model="")!(base="")!(key="") { throw ##class(%Exception.General).%New("MODEL_NOT_CONFIGURED") }
         set adapter=config.%Get("model_provider","openai"),client={"api_key":(key),"http_config":{"request_timeout_secs":60,"connect_timeout_secs":10}}
-        if adapter="openai" { set client."base_url"=base }
+        // Native Agent.Chat calls Rust directly; observe the real transport instead of decorating Provider methods.
+        set scope=$get(%HDTraceContext)
+        if $isobject(scope) { set base=scope.Configure(adapter,base,model) }
+        if (adapter="openai")!(adapter="anthropic")!(adapter="nim") { set client."base_url"=base }
         return ##class(%AI.Provider).Create(adapter,client)
-    } catch ex { throw ##class(%Exception.General).%New("MODEL_NOT_CONFIGURED") }
+    } catch ex { if $isobject($get(%HDTraceContext)),%HDTraceContext.Failed { throw ##class(%Exception.General).%New("TRACE_FAILED") } throw ##class(%Exception.General).%New("MODEL_NOT_CONFIGURED") }
 }
 }

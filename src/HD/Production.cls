@@ -7,6 +7,9 @@ XData ProductionDefinition
  <Item Name="FHIRIntake" ClassName="HD.Service" PoolSize="0" Enabled="true" Foreground="false"/>
  <Item Name="FHIRProcess" ClassName="HD.Process" PoolSize="1" Enabled="true" Foreground="false"/>
  <Item Name="FHIRRoute" ClassName="HD.FHIRRoute" PoolSize="1" Enabled="true" Foreground="false"/>
+ <Item Name="ModelTrace" ClassName="HD.Trace.Sink" PoolSize="1" Enabled="true" Foreground="false"/>
+ <Item Name="ToolTrace" ClassName="HD.Trace.Sink" PoolSize="1" Enabled="true" Foreground="false"/>
+ <Item Name="RunTrace" ClassName="HD.Trace.Sink" PoolSize="1" Enabled="true" Foreground="false"/>
  <Item Name="AgentReview" ClassName="HD.AgentOperation" PoolSize="1" Enabled="true" Foreground="false"/>
  <Item Name="EmbeddedVector" ClassName="HD.PEX.EmbeddingOperation" PoolSize="1" Enabled="true" Foreground="false"/>
  <Item Name="WorkflowDispatch" ClassName="HD.WorkflowDispatch" PoolSize="1" Enabled="true" Foreground="false"/>
